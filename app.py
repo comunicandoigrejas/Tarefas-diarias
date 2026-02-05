@@ -27,6 +27,10 @@ st.markdown("""
 
 # --- Conexão com Google Sheets ---
 def conectar_google_sheets():
+    # ... código das credenciais ...
+    # Especifica que quer a aba das tarefas
+    sheet = client.open("Tarefas Diarias DB").worksheet("Página1") # Ou o nome que estiver na aba de tarefas
+    return sheet
     # Define o escopo (permissões)
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
