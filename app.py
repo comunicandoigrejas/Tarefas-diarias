@@ -70,12 +70,12 @@ def carregar_tarefas():
     except:
         return pd.DataFrame()
 
-def salvar_tarefa(titulo, desc, resp, d_prazo, h_prazo, criador):
+def salvar_tarefa(titulo, desc, resp, d_prazo, h_prazo, criador, recorrencia="Única"):
     try:
         aba = conectar_google("Página1")
         novo_id = str(uuid.uuid4())[:8]
-        # Salva na ordem exata das colunas
-        nova_linha = [novo_id, titulo, desc, resp, str(d_prazo), str(h_prazo), 'Pendente', '', '', criador]
+        # Adicionamos a recorrência no final da linha (Coluna K)
+        nova_linha = [novo_id, titulo, desc, resp, str(d_prazo), str(h_prazo), 'Pendente', '', '', criador, recorrencia]
         aba.append_row(nova_linha)
         return True
     except Exception as e:
