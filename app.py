@@ -159,44 +159,58 @@ else:
     elif st.session_state['page'] == 'add':
         st.title("📝 Novo Agendamento")
         with st.form("form_add", clear_on_submit=True):
-            titulo = st.text_input("Título")
-            desc = st.text_area("Descrição")
-            resp = st.selectbox("Responsável", ["Willian", "Aprendiz"]) if st.session_state['role'] == 'Administrador' else st.session_state['user']
-            d_p = st.date_input("Data", date.today())
-            h_p = st.time_input("Hora", time(9, 0))
-            if st.form_submit_button("Agendar"):
-                if titulo:
-                    if salvar_tarefa(titulo, desc, resp, d_p, h_p, st.session_state['user']):
-                        st.success("Tarefa salva na planilha!")
-                else: st.error("O título é obrigatório.")
-
-    # --- PÁGINA: PENDÊNCIAS ---
-    elif st.session_state['page'] == 'list':
-        st.title("📋 Minhas Pendências")
-        df = carregar_tarefas()
-        if not df.empty and 'status' in df.columns:
-            df = df[df['status'].isin(['Pendente', 'Adiado'])]
-            if st.session_state['role'] == 'Padrão':
-                df = df[df['responsavel'] == st.session_state['user']]
+            titulo = st.text_input("Título da Tarefa")
+            desc = st.text_area("Descrição Detalhada")
             
-            for _, row in df.iterrows():
-                with st.expander(f"📌 {row['titulo']} ({row['data_prazo']})"):
-                    st.write(f"**Descrição:** {row['descricao']}")
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        with st.form(f"f_c_{row['id']}"):
-                            o = st.text_area("Observações")
-                            if st.form_submit_button("✅ Concluir"):
-                                atualizar_tarefa_planilha(row['id'], 'Concluído', obs=o)
-                                st.rerun()
-                    with c2:
-                        with st.form(f"f_a_{row['id']}"):
-                            nd = st.date_input("Nova Data")
-                            mot = st.text_input("Motivo")
-                            if st.form_submit_button("📅 Adiar"):
-                                if mot:
-                                    atualizar_tarefa_planilha(row['id'], 'Adiado', motivo=mot, n_data=nd)
-                                    st.rerun()
+            # Define quem faz a obra
+            if st.session_state['role'] == 'Administrador':
+                resp = st.selectbox("Responsável", ["Willian", "Aprendiz"])
+            else:
+                resp = st.session_state['user']
+            
+            # Organiza Data, Hora e Frequência em 3 colunas
+            c1, c2, c3 = st.columns(3)
+            d_p = c1.date_input("Data Inicial", date.today())
+            h_p = c2.time_input("Hora", time(9, 0))
+            
+            # AQUI ESTÁ A NOVIDADE: O campo de Frequência
+            tipo_rec = c3.selectbox("Frequência", ["Única", "Diário"])
+            
+            if st.form_submit_button("Confirmar Agendamento"):
+                if titulo:
+                    # Chamamos a função de salvar passando a recorrência
+                    if salvar_tarefa(titulo, desc, resp, d_p, h_p, st.session_state['user'], tipo_rec):
+                        st.success(f"Bênção! Tarefa '{tipo_rec}' registrada com sucesso.")
+                else:
+                    st.error("Varão, o título da tarefa não pode ficar vazio!")
+    # --- PÁGINA: PENDÊNCIAS ---
+    # Dentro do loop de pendências, no botão Concluir:
+if st.form_submit_button("✅ Concluir"):
+    # 1. Atualiza a tarefa atual para Concluído
+    atualizar_tarefa_planilha(row['id'], 'Concluído', obs=o)
+    
+    # 2. Verifica se era recorrente (Diária)
+    # Se a coluna recorrencia (índice 10 no DataFrame) for "Diário"
+    if 'recorrencia' in row and row['recorrencia'] == "Diário":
+        from datetime import timedelta
+        nova_data = pd.to_datetime(row['data_prazo']) + timedelta(days=1)
+        
+        # Cria a missão para o dia seguinte com os mesmos dados
+        salvar_tarefa(
+            row['titulo'], 
+            row['descricao'], 
+            row['responsavel'], 
+            nova_data.date(), 
+            row['hora_prazo'], 
+            st.session_state['user'],
+            "Diário"
+        )
+        st.success("Bênção! Tarefa concluída e agendada para amanhã automaticamente.")
+    else:
+        st.success("Tarefa concluída!")
+        
+    t_time.sleep(1)
+    st.rerun()
 
     # --- PÁGINA: REPORT ---
     elif st.session_state['page'] == 'report':
