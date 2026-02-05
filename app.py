@@ -195,36 +195,79 @@ else:
                 else: st.error("O título é obrigatório.")
 
     # --- PÁGINA: PENDÊNCIAS ---
+    # --- PÁGINA: PENDÊNCIAS (ATUALIZADA PARA DELEGAR) ---
     elif st.session_state['page'] == 'list':
-        st.title("📋 Pendências")
+        st.title("📋 Gestão de Pendências")
         df = carregar_tarefas()
+        
         if not df.empty and 'status' in df.columns:
+            # Filtra o que não está concluído
             df_pend = df[df['status'].isin(['Pendente', 'Adiado'])]
+            
+            # Se for aprendiz, só vê o dela. Se for Willian, vê tudo.
             if st.session_state['role'] == 'Padrão':
                 df_pend = df_pend[df_pend['responsavel'] == st.session_state['user']]
             
-            for _, row in df_pend.iterrows():
-                with st.expander(f"📌 {row['titulo']} ({row['data_prazo']})"):
-                    st.write(f"**Frequência:** {row.get('recorrencia', 'Única')}")
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        with st.form(f"f_c_{row['id']}"):
-                            o = st.text_area("Observações")
-                            if st.form_submit_button("✅ Concluir"):
-                                atualizar_tarefa_planilha(row['id'], 'Concluído', obs=o)
-                                if row.get('recorrencia') == "Diário":
-                                    proxima = pd.to_datetime(row['data_prazo']) + timedelta(days=1)
-                                    salvar_tarefa(row['titulo'], row['descricao'], row['responsavel'], proxima.date(), row['hora_prazo'], st.session_state['user'], "Diário")
-                                st.rerun()
-                    with c2:
-                        with st.form(f"f_a_{row['id']}"):
-                            nd = st.date_input("Nova Data")
-                            mot = st.text_input("Motivo")
-                            if st.form_submit_button("📅 Adiar"):
-                                if mot:
-                                    atualizar_tarefa_planilha(row['id'], 'Adiado', motivo=mot, n_data=nd)
+            if df_pend.empty:
+                st.info("Nenhuma pendência encontrada no momento.")
+            else:
+                for _, row in df_pend.iterrows():
+                    with st.expander(f"📌 {row['titulo']} - Resp: {row['responsavel']}"):
+                        st.write(f"**Descrição:** {row['descricao']}")
+                        st.write(f"**Prazo Atual:** {row['data_prazo']} às {row['hora_prazo']}")
+                        
+                        # Criamos 3 colunas para as ações
+                        # Se for admin, aparece a opção de delegar. Se não, apenas Concluir e Adiar.
+                        cols = st.columns(3) if st.session_state['role'] == 'Administrador' else st.columns(2)
+                        
+                        # COLUNA 1: CONCLUIR
+                        with cols[0]:
+                            with st.form(f"f_concluir_{row['id']}"):
+                                o = st.text_area("Observações", placeholder="Relate como foi o serviço...")
+                                if st.form_submit_button("✅ Concluir"):
+                                    atualizar_tarefa_planilha(row['id'], 'Concluído', obs=o)
+                                    # Lógica de recorrência
+                                    if row.get('recorrencia') == "Diário":
+                                        proxima = pd.to_datetime(row['data_prazo']) + timedelta(days=1)
+                                        salvar_tarefa(row['titulo'], row['descricao'], row['responsavel'], proxima.date(), row['hora_prazo'], st.session_state['user'], "Diário")
+                                    st.success("Tarefa concluída!")
+                                    t_time.sleep(1)
                                     st.rerun()
 
+                        # COLUNA 2: ADIAR
+                        with cols[1]:
+                            with st.form(f"f_adiar_{row['id']}"):
+                                nd = st.date_input("Nova Data", value=pd.to_datetime(row['data_prazo']))
+                                nh = st.time_input("Nova Hora", value=datetime.strptime(str(row['hora_prazo']), '%H:%M:%S').time() if len(str(row['hora_prazo'])) > 5 else time(9,0))
+                                mot = st.text_input("Motivo do Adiamento")
+                                if st.form_submit_button("📅 Adiar"):
+                                    if mot:
+                                        atualizar_tarefa_planilha(row['id'], 'Adiado', motivo=mot, n_data=nd, n_hora=nh)
+                                        st.warning("Prazo alterado!")
+                                        t_time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.error("Informe o motivo.")
+
+                        # COLUNA 3: DELEGAR (Apenas para o Administrador Willian)
+                        if st.session_state['role'] == 'Administrador':
+                            with cols[2]:
+                                with st.form(f"f_delegar_{row['id']}"):
+                                    st.markdown("🔗 **Direcionar para Aprendiz**")
+                                    nova_data_del = st.date_input("Data para ela executar", value=date.today())
+                                    nova_hora_del = st.time_input("Horário da execução", value=time(14, 0))
+                                    if st.form_submit_button("➡️ Enviar para Aprendiz"):
+                                        # Função para mudar o responsável e a data na planilha
+                                        aba = conectar_google("Página1")
+                                        celula = aba.find(str(row['id']))
+                                        # Colunas: 4=responsavel, 5=data_prazo, 6=hora_prazo
+                                        aba.update_cell(celula.row, 4, "Aprendiz")
+                                        aba.update_cell(celula.row, 5, str(nova_data_del))
+                                        aba.update_cell(celula.row, 6, str(nova_hora_del))
+                                        
+                                        st.success(f"Tarefa direcionada para Aprendiz!")
+                                        t_time.sleep(1)
+                                        st.rerun()
     # --- PÁGINA: REPORT ---
     elif st.session_state['page'] == 'report':
         st.title("📊 Relatório")
