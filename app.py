@@ -6,138 +6,191 @@ from datetime import datetime, date, time
 import time as t_time
 import uuid
 
-# --- Configuração da Página ---
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Tarefas Diárias", layout="wide", page_icon="📅")
 
-# --- Cores e Estilo (CSS Personalizado) ---
+# --- ESTILO VISUAL (Cores: Azul, Roxo, Verde, Laranja, Amarelo) ---
 st.markdown("""
     <style>
-    .main-header {color: #4B0082; text-align: center; font-weight: bold;} 
+    .stApp { background-color: #ffffff; }
+    h1, h2, h3 { color: #4B0082; } /* Roxo */
     .stButton>button {
-        background-color: #0000FF; color: white; border-radius: 10px; font-weight: bold;
+        background-color: #0000FF; color: white; border-radius: 10px; font-weight: bold; width: 100%;
     }
-    .stButton>button:hover {
-        background-color: #FFA500; color: black;
-    }
-    .success-box {background-color: #32CD32; padding: 10px; border-radius: 5px; color: white;}
-    .warning-box {background-color: #FFA500; padding: 10px; border-radius: 5px; color: black;}
-    .danger-box {background-color: #FF4500; padding: 10px; border-radius: 5px; color: white;}
+    .stButton>button:hover { background-color: #FFA500; color: black; } /* Laranja */
+    .atraso-card { background-color: #FF4500; color: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+    .em-dia-card { background-color: #32CD32; color: white; padding: 15px; border-radius: 10px; }
+    .info-card { background-color: #FFFF00; color: black; padding: 15px; border-radius: 10px; border: 1px solid #ddd; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- Conexão com Google Sheets ---
-def conectar_google_sheets():
-    # ... código das credenciais ...
-    # Especifica que quer a aba das tarefas
-    sheet = client.open("Tarefas Diarias DB").worksheet("Página1") # Ou o nome que estiver na aba de tarefas
-    return sheet
-    # Define o escopo (permissões)
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
-    # Pega as credenciais dos Segredos do Streamlit (vamos configurar isso já já)
-    creds_dict = st.secrets["gcp_service_account"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    
-    client = gspread.authorize(creds)
-    
-    # Abre a planilha pelo nome (tem que criar uma planilha com esse nome exato no Google)
+# --- CONEXÃO COM GOOGLE SHEETS ---
+def conectar_google(aba_nome):
     try:
-        sheet = client.open("Tarefas Diarias DB").sheet1
-        return sheet
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds_dict = st.secrets["gcp_service_account"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        client = gspread.authorize(creds)
+        return client.open("Tarefas Diarias DB").worksheet(aba_nome)
     except Exception as e:
-        st.error("Varão, não achei a planilha 'Tarefas Diarias DB'. Verifique se criou ela e compartilhou com o email do robô.")
+        st.error(f"Erro de conexão: {e}")
         st.stop()
 
-# --- Funções de Dados ---
-def carregar_dados():
-    sheet = conectar_google_sheets()
-    data = sheet.get_all_records()
-    return pd.DataFrame(data)
+# --- FUNÇÕES DE LOGIN ---
+def validar_login(user_input, pass_input):
+    try:
+        aba = conectar_google("Usuarios")
+        df_users = pd.DataFrame(aba.get_all_records())
+        user_row = df_users[(df_users['usuario'] == user_input) & (df_users['senha'].astype(str) == pass_input)]
+        if not user_row.empty:
+            return user_row.iloc[0].to_dict()
+        return None
+    except:
+        return None
 
-def adicionar_tarefa(titulo, descricao, responsavel, data_prazo, hora_prazo, criado_por):
-    sheet = conectar_google_sheets()
-    # Gera um ID único
+# --- FUNÇÕES DE TAREFAS ---
+def carregar_tarefas():
+    aba = conectar_google("Página1")
+    return pd.DataFrame(aba.get_all_records())
+
+def salvar_tarefa(titulo, desc, resp, d_prazo, h_prazo, criador):
+    aba = conectar_google("Página1")
     novo_id = str(uuid.uuid4())[:8]
-    nova_linha = [novo_id, titulo, descricao, responsavel, str(data_prazo), str(hora_prazo), 'Pendente', '', '', criado_por]
-    sheet.append_row(nova_linha)
+    aba.append_row([novo_id, titulo, desc, resp, str(d_prazo), str(h_prazo), 'Pendente', '', '', criador])
 
-def atualizar_status(id_tarefa, novo_status, observacao="", motivo="", nova_data="", nova_hora=""):
-    sheet = conectar_google_sheets()
-    # Busca a célula que contém o ID
-    cell = sheet.find(str(id_tarefa))
-    row_num = cell.row
-    
-    # Colunas: 1=id, 2=titulo, 3=desc, 4=resp, 5=data, 6=hora, 7=status, 8=obs, 9=motivo, 10=criado
-    sheet.update_cell(row_num, 7, novo_status) # Atualiza Status
-    
-    if novo_status == 'Concluído':
-        sheet.update_cell(row_num, 8, observacao) # Obs
-    elif novo_status == 'Adiado':
-        sheet.update_cell(row_num, 9, motivo) # Motivo
-        sheet.update_cell(row_num, 5, str(nova_data)) # Nova Data
-        sheet.update_cell(row_num, 6, str(nova_hora)) # Nova Hora
+def atualizar_tarefa_planilha(id_t, status, obs="", motivo="", n_data="", n_hora=""):
+    aba = conectar_google("Página1")
+    celula = aba.find(str(id_t))
+    row = celula.row
+    aba.update_cell(row, 7, status)
+    if status == 'Concluído':
+        aba.update_cell(row, 8, obs)
+    elif status == 'Adiado':
+        aba.update_cell(row, 9, motivo)
+        aba.update_cell(row, 5, str(n_data))
+        aba.update_cell(row, 6, str(n_hora))
 
-# --- Login ---
-def login():
-    st.sidebar.title("🔐 Acesso Restrito")
-    usuario = st.sidebar.text_input("Usuário")
-    senha = st.sidebar.text_input("Senha", type="password")
-    
-    if st.sidebar.button("Entrar"):
-        # Login do Willian (Admin)
-        if usuario == "willian" and senha == "admin123":
-            st.session_state['logged_in'] = True
-            st.session_state['user'] = "Willian"
-            st.session_state['role'] = "Administrador"
-            st.rerun()
-        # Login da Aprendiz (Padrão)
-        elif usuario == "aprendiz" and senha == "ap123":
-            st.session_state['logged_in'] = True
-            st.session_state['user'] = "Aprendiz"
-            st.session_state['role'] = "Padrão"
-            st.rerun()
-        else:
-            st.sidebar.error("Usuário ou senha incorretos. Vigiai!")
-
-def logout():
-    if st.sidebar.button("Sair"):
-        st.session_state['logged_in'] = False
-        st.rerun()
-
-# --- App Principal ---
+# --- INTERFACE DE LOGIN ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    st.markdown("<h1 class='main-header'>Tarefas Diárias - Login</h1>", unsafe_allow_html=True)
-    login()
+    st.markdown("<h1 class='main-header'>🙏 Tarefas Diárias - Comunicando Igrejas</h1>", unsafe_allow_html=True)
+    with st.container():
+        col_l, col_r = st.columns([1, 2])
+        with col_l:
+            u = st.text_input("Usuário")
+            s = st.text_input("Senha", type="password")
+            if st.button("Entrar no Sistema"):
+                user_data = validar_login(u, s)
+                if user_data:
+                    st.session_state.update({
+                        'logged_in': True, 'user': user_data['nome'],
+                        'role': user_data['perfil'], 'page': 'home'
+                    })
+                    st.rerun()
+                else:
+                    st.error("Credenciais inválidas. Vigiai!")
+
+# --- APP LOGADO ---
 else:
-    logout()
-    user_name = st.session_state['user']
-    user_role = st.session_state['role']
-    
-    st.markdown(f"<h2 style='color: #4B0082;'>A paz do Senhor, {user_name}! ({user_role})</h2>", unsafe_allow_html=True)
+    # Sidebar
+    st.sidebar.markdown(f"### Bem-vindo, \n**{st.session_state['user']}**")
+    st.sidebar.info(f"Perfil: {st.session_state['role']}")
+    if st.sidebar.button("Sair"):
+        st.session_state['logged_in'] = False
+        st.rerun()
 
-    # Menu
-  # --- Menu de Navegação ---
-    # Garante que a variável 'page' existe antes de clicar
-    if 'page' not in st.session_state:
-        st.session_state['page'] = 'home'
-
+    # Menu Superior
     col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        if st.button("🏠 Início"):
-            st.session_state['page'] = 'home'
+    with col1: 
+        if st.button("🏠 Início"): st.session_state['page'] = 'home'
+    with col2: 
+        if st.button("📝 Agendar"): st.session_state['page'] = 'add'
+    with col3: 
+        if st.button("📋 Pendências"): st.session_state['page'] = 'list'
+    with col4: 
+        if st.button("📊 Concluídas"): st.session_state['page'] = 'report'
+
+    # --- PÁGINA: HOME (AVISOS) ---
+    if st.session_state['page'] == 'home':
+        st.title("🔔 Quadro de Avisos")
+        df = carregar_tarefas()
+        if not df.empty:
+            df_p = df[df['status'].isin(['Pendente', 'Adiado'])].copy()
+            df_p['data_hora'] = pd.to_datetime(df_p['data_prazo'].astype(str) + ' ' + df_p['hora_prazo'].astype(str))
+            agora = datetime.now()
             
-    with col2:
-        if st.button("📝 Agendar"):
-            st.session_state['page'] = 'add'
+            atrasadas = df_p[df_p['data_hora'] < agora]
+            # Filtro para aprendiz
+            if st.session_state['role'] == 'Padrão':
+                atrasadas = atrasadas[atrasadas['responsavel'] == st.session_state['user']]
+
+            if not atrasadas.empty:
+                st.markdown(f"<div class='atraso-card'>⚠️ ALERTA: {len(atrasadas)} Tarefas Atrasadas!</div>", unsafe_allow_html=True)
+                for _, row in atrasadas.iterrows():
+                    st.write(f"❌ **{row['titulo']}** (Prazo: {row['data_prazo']} {row['hora_prazo']})")
+            else:
+                st.markdown("<div class='em-dia-card'>✅ Glória a Deus! Tudo em dia.</div>", unsafe_allow_html=True)
+
+    # --- PÁGINA: AGENDAR ---
+    elif st.session_state['page'] == 'add':
+        st.title("📝 Agendar Nova Missão")
+        with st.form("form_add"):
+            titulo = st.text_input("O que precisa ser feito?")
+            desc = st.text_area("Detalhes do serviço")
+            if st.session_state['role'] == 'Administrador':
+                resp = st.selectbox("Responsável", ["Willian", "Aprendiz"])
+            else:
+                resp = st.session_state['user']
             
-    with col3:
-        if st.button("📋 Pendências"):
-            st.session_state['page'] = 'list'
+            c1, c2 = st.columns(2)
+            d_p = c1.date_input("Data", date.today())
+            h_p = c2.time_input("Hora", time(9, 0))
             
-    with col4:
-        if st.button("📊 Relatórios"):
-            st.session_state['page'] = 'report'
+            if st.form_submit_button("Confirmar Agendamento"):
+                salvar_tarefa(titulo, desc, resp, d_p, h_p, st.session_state['user'])
+                st.success("Tarefa registrada com sucesso!")
+
+    # --- PÁGINA: LISTA DE PENDÊNCIAS ---
+    elif st.session_state['page'] == 'list':
+        st.title("📋 Tarefas em Aberto")
+        df = carregar_tarefas()
+        df = df[df['status'].isin(['Pendente', 'Adiado'])]
+        if st.session_state['role'] == 'Padrão':
+            df = df[df['responsavel'] == st.session_state['user']]
+        
+        for _, row in df.iterrows():
+            with st.expander(f"📌 {row['titulo']} | Para: {row['data_prazo']} às {row['hora_prazo']}"):
+                st.write(f"**Descrição:** {row['descricao']}")
+                st.write(f"**Criado por:** {row['criado_por']}")
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    with st.form(f"f_con_{row['id']}"):
+                        obs = st.text_area("Observações")
+                        if st.form_submit_button("✅ Concluir"):
+                            atualizar_tarefa_planilha(row['id'], 'Concluído', obs=obs)
+                            st.rerun()
+                with c2:
+                    with st.form(f"f_adi_{row['id']}"):
+                        nd = st.date_input("Nova Data")
+                        nh = st.time_input("Nova Hora")
+                        mot = st.text_input("Motivo")
+                        if st.form_submit_button("📅 Adiar"):
+                            if mot:
+                                atualizar_tarefa_planilha(row['id'], 'Adiado', motivo=mot, n_data=nd, n_hora=nh)
+                                st.rerun()
+                            else: st.error("Dê um motivo, varão.")
+
+    # --- PÁGINA: RELATÓRIOS ---
+    elif st.session_state['page'] == 'report':
+        st.title("📊 Histórico de Tarefas Concluídas")
+        df = carregar_tarefas()
+        df_c = df[df['status'] == 'Concluído']
+        if st.session_state['role'] == 'Padrão':
+            df_c = df_c[df_c['responsavel'] == st.session_state['user']]
+        
+        st.dataframe(df_c, use_container_width=True)
+        csv = df_c.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Exportar para Excel (CSV)", csv, "relatorio.csv", "text/csv")
