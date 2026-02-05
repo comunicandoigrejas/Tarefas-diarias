@@ -115,6 +115,25 @@ else:
     st.markdown(f"<h2 style='color: #4B0082;'>A paz do Senhor, {user_name}! ({user_role})</h2>", unsafe_allow_html=True)
 
     # Menu
+  # --- Menu de Navegação ---
+    # Garante que a variável 'page' existe antes de clicar
+    if 'page' not in st.session_state:
+        st.session_state['page'] = 'home'
+
     col1, col2, col3, col4 = st.columns(4)
+    
     with col1:
-        if st.button("🏠 In
+        if st.button("🏠 Início"):
+            st.session_state['page'] = 'home'
+            
+    with col2:
+        if st.button("📝 Agendar"):
+            st.session_state['page'] = 'add'
+            
+    with col3:
+        if st.button("📋 Pendências"):
+            st.session_state['page'] = 'list'
+            
+    with col4:
+        if st.button("📊 Relatórios"):
+            st.session_state['page'] = 'report'
