@@ -89,25 +89,24 @@ def validar_login(user_input, pass_input):
 
 # --- FUNÇÕES DE TAREFAS ---
 def carregar_tarefas():
-    aba = conectar_google("Página1")
-    return pd.DataFrame(aba.get_all_records())
-
-def salvar_tarefa(titulo, desc, resp, d_prazo, h_prazo, criador):
-    aba = conectar_google("Página1")
-    novo_id = str(uuid.uuid4())[:8]
-    aba.append_row([novo_id, titulo, desc, resp, str(d_prazo), str(h_prazo), 'Pendente', '', '', criador])
-
-def atualizar_tarefa_planilha(id_t, status, obs="", motivo="", n_data="", n_hora=""):
-    aba = conectar_google("Página1")
-    celula = aba.find(str(id_t))
-    row = celula.row
-    aba.update_cell(row, 7, status)
-    if status == 'Concluído':
-        aba.update_cell(row, 8, obs)
-    elif status == 'Adiado':
-        aba.update_cell(row, 9, motivo)
-        aba.update_cell(row, 5, str(n_data))
-        aba.update_cell(row, 6, str(n_hora))
+    try:
+        # Tenta conectar na aba de tarefas (mude o nome se necessário)
+        aba = conectar_google("Página1") 
+        dados = aba.get_all_records()
+        
+        if not dados:
+            # Se a planilha estiver vazia, retorna um DataFrame com as colunas certas
+            return pd.DataFrame(columns=['id', 'titulo', 'descricao', 'responsavel', 'data_prazo', 'hora_prazo', 'status', 'observacoes', 'motivo_adiamento', 'criado_por'])
+        
+        df = pd.DataFrame(dados)
+        
+        # Remove espaços em branco dos nomes das colunas e deixa tudo minúsculo
+        df.columns = [c.strip().lower() for c in df.columns]
+        
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar colunas: {e}")
+        return pd.DataFrame()
 
 # --- INTERFACE DE LOGIN ---
 if 'logged_in' not in st.session_state:
