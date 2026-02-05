@@ -192,24 +192,36 @@ else:
             st.rerun()
 
     # --- PÁGINA: AGENDAR ---
+  # --- PÁGINA: AGENDAR ---
     elif st.session_state['page'] == 'add':
         st.title("📝 Agendar Nova Missão")
-        with st.form("form_add"):
-            t = st.text_input("O que fazer?")
-            desc = st.text_area("Descrição")
-            r = st.selectbox("Responsável", ["Willian", "Aprendiz"]) if st.session_state['role'] == 'Administrador' else st.session_state['user']
+        with st.form("form_add", clear_on_submit=True):
+            t = st.text_input("O que fazer? (Título)")
+            desc = st.text_area("Descrição da Tarefa")
+            
+            # AQUI ESTÁ A FUNÇÃO DE ESCOLHER PARA QUEM SERÁ AGENDADO:
+            # Se você for o Administrador, você escolhe entre você ou a aprendiz.
+            # Se for a aprendiz logada, o sistema define ela como responsável automaticamente.
+            if st.session_state['role'] == 'Administrador':
+                r = st.selectbox("Para quem será agendado?", ["Willian", "Aprendiz"])
+            else:
+                r = st.session_state['user']
+                st.write(f"Responsável: **{r}**")
+            
             c1, c2, c3 = st.columns(3)
             dt = c1.date_input("Data", date.today())
             hr = c2.time_input("Hora", time(9, 0))
             rec = c3.selectbox("Frequência", ["Única", "Diário"])
-            if st.form_submit_button("Agendar"):
+            
+            if st.form_submit_button("Agendar Missão"):
                 if t:
+                    # Salva na planilha com o responsável escolhido (r)
                     if salvar_tarefa(t, desc, r, dt, hr, st.session_state['user'], rec):
-                        st.success("Bênção! Tarefa agendada.")
+                        st.success(f"Bênção! Tarefa agendada para {r} com sucesso.")
                         t_time.sleep(1)
                         st.rerun()
-                else: st.error("O título é obrigatório.")
-
+                else:
+                    st.error("Varão, o título é obrigatório para registrar a obra!")
     # --- PÁGINA: PENDÊNCIAS (COM FUNÇÃO DE DELEGAR) ---
     elif st.session_state['page'] == 'list':
         st.title("📋 Minhas Pendências")
