@@ -139,18 +139,22 @@ else:
     with col5:
         if st.button("👤 Perfil"): st.session_state['page'] = 'profile'
 
-    # --- PÁGINA: HOME (MISSÕES DE HOJE) ---
+   # --- PÁGINA: HOME (MISSÕES DE HOJE) ---
     if st.session_state['page'] == 'home':
         st.title(f"☀️ Missões de Hoje - {date.today().strftime('%d/%m/%Y')}")
         df = carregar_tarefas()
+        
         if not df.empty:
             hoje_str = date.today().strftime('%Y-%m-%d')
-            # Filtro de Hoje
-            df_hoje = df[(df['status'].isin(['Pendente', 'Adiado'])) & (df['data_prazo'].astype(str) == hoje_str)]
-            
-            # Trava de Segurança: Aprendiz só vê o dela
+            # Filtro base: Pendentes ou Adiadas para hoje
+            mask_hoje = (df['status'].isin(['Pendente', 'Adiado'])) & (df['data_prazo'].astype(str) == hoje_str)
+            df_hoje = df[mask_hoje].copy()
+
+            # --- TRAVA DE SEGURANÇA (VIGIAI!) ---
             if st.session_state['role'] == 'Padrão':
-                df_hoje = df_hoje[df_hoje['responsavel'] == st.session_state['user']]
+                # Filtra apenas onde o responsável é IGUAL ao nome do usuário logado
+                # Usamos .strip() para ignorar espaços invisíveis
+                df_hoje = df_hoje[df_hoje['responsavel'].str.lower() == st.session_state['user'].lower().strip()]
             
             if not df_hoje.empty:
                 for _, row in df_hoje.iterrows():
@@ -163,13 +167,25 @@ else:
             else:
                 st.markdown("<div class='em-dia-card'>✅ Nenhuma missão pendente para hoje!</div>", unsafe_allow_html=True)
 
-            # Alerta de Atrasos
-            df_atraso = df[(df['status'].isin(['Pendente', 'Adiado'])) & (df['data_prazo'].astype(str) < hoje_str)]
+    # --- PÁGINA: PENDÊNCIAS ---
+    elif st.session_state['page'] == 'list':
+        st.title("📋 Gestão de Pendências")
+        df = carregar_tarefas()
+        
+        if not df.empty:
+            df_p = df[df['status'].isin(['Pendente', 'Adiado'])]
+            
+            # --- FILTRO DE PRIVACIDADE ---
             if st.session_state['role'] == 'Padrão':
-                df_atraso = df_atraso[df_atraso['responsavel'] == st.session_state['user']]
-            if not df_atraso.empty:
-                st.markdown("---")
-                st.markdown(f"<div class='atraso-card'>🚨 VIGIAI! Existem {len(df_atraso)} tarefas atrasadas.</div>", unsafe_allow_html=True)
+                # Aqui garantimos que a aprendiz não veja o que é do Willian
+                df_p = df_p[df_p['responsavel'].str.lower() == st.session_state['user'].lower().strip()]
+            
+            if df_p.empty:
+                st.info("Nenhuma pendência encontrada.")
+            else:
+                for _, row in df_p.iterrows():
+                    with st.expander(f"📌 {row['titulo']} | Para: {row['data_prazo']}"):
+                        # ... (resto do código dos botões de concluir/adiar/delegar)
 
     # --- PÁGINA: PERFIL (TROCA DE SENHA) ---
     elif st.session_state['page'] == 'profile':
