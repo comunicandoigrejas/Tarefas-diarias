@@ -144,7 +144,7 @@ else:
     # --- PÁGINA: PERFIL (TROCAR SENHA) ---
     elif st.session_state['page'] == 'profile':
         st.title("👤 Configurações de Perfil")
-        st.write(f"Usuário: **{st.session_state['login_user']}**")
+        t.write(f"Usuário: **{st.session_state.get('login_user', 'Não identificado')}**")
         with st.form("trocar_senha"):
             nova = st.text_input("Nova Senha", type="password")
             conf = st.text_input("Confirmar Nova Senha", type="password")
