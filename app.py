@@ -123,21 +123,59 @@ else:
     with col4: 
         if st.button("📊 Concluídas"): st.session_state['page'] = 'report'
 
-    # --- PÁGINA: HOME ---
+  # --- PÁGINA: HOME (PÁGINA INICIAL) ---
     if st.session_state['page'] == 'home':
-        st.title("🔔 Avisos do Dia")
+        st.title("☀️ Missões para Hoje")
         df = carregar_tarefas()
+        
         if not df.empty and 'status' in df.columns:
-            df_p = df[df['status'].isin(['Pendente', 'Adiado'])].copy()
-            if not df_p.empty:
-                df_p['data_hora'] = pd.to_datetime(df_p['data_prazo'].astype(str) + ' ' + df_p['hora_prazo'].astype(str), errors='coerce')
-                atrasadas = df_p[df_p['data_hora'] < datetime.now()]
-                if st.session_state['role'] == 'Padrão':
-                    atrasadas = atrasadas[atrasadas['responsavel'] == st.session_state['user']]
-                if not atrasadas.empty:
-                    st.markdown(f"<div class='atraso-card'>⚠️ ATENÇÃO: {len(atrasadas)} Tarefas Atrasadas!</div>", unsafe_allow_html=True)
-                else: st.markdown("<div class='em-dia-card'>✅ Tudo em ordem!</div>", unsafe_allow_html=True)
-            else: st.markdown("<div class='em-dia-card'>✅ Nenhuma pendência.</div>", unsafe_allow_html=True)
+            # 1. Filtramos o que é de HOJE e está Pendente ou Adiado
+            hoje_str = date.today().strftime('%Y-%m-%d')
+            df_hoje = df[
+                (df['status'].isin(['Pendente', 'Adiado'])) & 
+                (df['data_prazo'].astype(str) == hoje_str)
+            ].copy()
+
+            # Se for Usuário Padrão (Aprendiz), ela só vê o que é dela
+            if st.session_state['role'] == 'Padrão':
+                df_hoje = df_hoje[df_hoje['responsavel'] == st.session_state['user']]
+
+            # 2. Mostramos as tarefas na tela
+            if not df_hoje.empty:
+                st.markdown(f"### 📋 Você tem {len(df_hoje)} tarefa(s) para concluir hoje:")
+                
+                # Criamos um cartão para cada tarefa de hoje
+                for _, row in df_hoje.iterrows():
+                    with st.container():
+                        # Cores: Azul para o título, Branco para o texto
+                        st.markdown(f"""
+                        <div style='background-color: #4B0082; padding: 15px; border-radius: 10px; border-left: 5px solid #0000FF; margin-bottom: 10px;'>
+                            <h4 style='margin:0; color: #FFFF00;'>🕒 {row['hora_prazo']} - {row['titulo']}</h4>
+                            <p style='margin:5px 0 0 0; color: white;'><b>Responsável:</b> {row['responsavel']}</p>
+                            <p style='margin:0; color: #32CD32;'><b>Status:</b> {row['status']}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                st.info("Varão, para concluir ou adiar estas tarefas, vá até a aba '📋 Pendências'.")
+            
+            else:
+                # Se não tem nada pra hoje, mostramos uma mensagem de vitória
+                st.markdown("<div class='em-dia-card'>✨ Glória a Deus! Não há pendências agendadas para o dia de hoje.</div>", unsafe_allow_html=True)
+                
+            # 3. Alerta de Atrasos (Serviços de dias passados que não foram feitos)
+            df_atrasadas = df[
+                (df['status'].isin(['Pendente', 'Adiado'])) & 
+                (df['data_prazo'].astype(str) < hoje_str)
+            ]
+            if st.session_state['role'] == 'Padrão':
+                df_atrasadas = df_atrasadas[df_atrasadas['responsavel'] == st.session_state['user']]
+            
+            if not df_atrasadas.empty:
+                st.markdown("---")
+                st.markdown(f"<div class='atraso-card'>🚨 VIGIAI! Você tem {len(df_atrasadas)} tarefa(s) de dias anteriores pendentes.</div>", unsafe_allow_html=True)
+        
+        else:
+            st.info("Nenhuma tarefa cadastrada no sistema.")
 
     # --- PÁGINA: AGENDAR ---
     elif st.session_state['page'] == 'add':
