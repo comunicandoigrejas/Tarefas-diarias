@@ -9,7 +9,7 @@ import uuid
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Tarefas Diárias - Comunicando Igrejas", layout="wide", page_icon="📅")
 
-# --- ESTILO VISUAL ---
+# --- ESTILO VISUAL (Paleta solicitada) ---
 st.markdown("""
     <style>
     .stApp { background-color: #1E0032; }
@@ -69,8 +69,6 @@ def carregar_tarefas():
             return pd.DataFrame(columns=['id', 'titulo', 'descricao', 'responsavel', 'data_prazo', 'hora_prazo', 'status', 'observacoes', 'motivo_adiamento', 'criado_por', 'recorrencia'])
         df = pd.DataFrame(dados)
         df.columns = [c.strip().lower() for c in df.columns]
-        if 'responsavel' in df.columns:
-            df['responsavel'] = df['responsavel'].astype(str).str.strip()
         return df
     except: return pd.DataFrame()
 
@@ -92,26 +90,24 @@ def atualizar_tarefa_planilha(id_t, status, obs="", motivo="", n_data="", n_hora
         elif status == 'Adiado':
             aba.update_cell(row, 9, motivo)
             aba.update_cell(row, 5, str(n_data))
-            aba.update_cell(row, 6, str(n_hora))
     except: pass
 
-# --- CONTROLE DE ACESSO ---
+# --- INÍCIO DO SISTEMA ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    st.markdown("<h1 style='text-align:center;'>🙏 Tarefas Diárias</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center;'>🙏 Comunicando Igrejas</h1>", unsafe_allow_html=True)
     col_l, col_m, col_r = st.columns([1, 2, 1])
     with col_m:
         u = st.text_input("Usuário")
         s = st.text_input("Senha", type="password")
-        if st.button("Entrar no Sistema"):
+        if st.button("Entrar"):
             user_data = validar_login(u, s)
             if user_data:
                 st.session_state.update({'logged_in': True, 'user': user_data['nome'], 'role': user_data['perfil'], 'login_user': u, 'page': 'home'})
                 st.rerun()
-            else: st.error("Credenciais incorretas!")
-
+            else: st.error("Login incorreto!")
 else:
     # Menu Superior
     cols_nav = st.columns(5)
@@ -133,64 +129,78 @@ else:
         st.title("☀️ Missões de Hoje")
         if not df.empty:
             hoje = date.today().strftime('%Y-%m-%d')
-            # Filtra o dia
             df_hoje = df[(df['status'].isin(['Pendente', 'Adiado'])) & (df['data_prazo'].astype(str) == hoje)].copy()
             
-            # FILTRO DE SEGURANÇA REFORÇADO
+            # FILTRO DE PRIVACIDADE MESTRE
             if st.session_state['role'] == 'Padrão':
-                # Forçamos o nome do usuário e do responsável a serem texto limpo e minúsculo
-                usuario_atual = str(st.session_state['user']).strip().lower()
-                df_hoje = df_hoje[df_hoje['responsavel'].astype(str).str.strip().str.lower() == usuario_atual]
+                usuario_limpo = str(st.session_state['user']).strip().lower()
+                df_hoje = df_hoje[df_hoje['responsavel'].astype(str).str.strip().str.lower() == usuario_limpo]
             
             if not df_hoje.empty:
                 for _, row in df_hoje.iterrows():
                     st.markdown(f"<div class='card-tarefa'><h4 style='color:yellow;'>🕒 {row['hora_prazo']} - {row['titulo']}</h4><p>Responsável: {row['responsavel']}</p></div>", unsafe_allow_html=True)
             else:
-                st.markdown("<div class='em-dia-card'>✅ Tudo em ordem! Nenhuma missão para hoje.</div>", unsafe_allow_html=True)
+                st.markdown("<div class='em-dia-card'>✅ Tudo em ordem! Nenhuma tarefa para hoje.</div>", unsafe_allow_html=True)
+
     # --- PÁGINA: AGENDAR ---
     elif st.session_state['page'] == 'add':
         st.title("📝 Novo Agendamento")
         with st.form("form_novo"):
             titulo = st.text_input("Título")
             desc = st.text_area("Descrição")
-            resp = st.selectbox("Para quem?", ["Willian", "Aprendiz"]) if st.session_state['role'] == 'Administrador' else st.session_state['user']
-            c1, c2, c3 = st.columns(3)
+            resp = st.selectbox("Responsável", ["Willian", "Aprendiz"]) if st.session_state['role'] == 'Administrador' else st.session_state['user']
+            c1, c2 = st.columns(2)
             dt = c1.date_input("Data", date.today())
             hr = c2.time_input("Hora", time(9, 0))
-            rec = c3.selectbox("Repetir?", ["Única", "Diário"])
-            if st.form_submit_button("Agendar"):
-                if salvar_tarefa(titulo, desc, resp, dt, hr, st.session_state['user'], rec):
+            if st.form_submit_button("Agendar Missão"):
+                if salvar_tarefa(titulo, desc, resp, dt, hr, st.session_state['user']):
                     st.success("Tarefa registrada!")
 
     # --- PÁGINA: PENDÊNCIAS ---
-   # --- PÁGINA: PENDÊNCIAS ---
     elif st.session_state['page'] == 'list':
-        st.title("📋 Gestão de Pendências")
+        st.title("📋 Minhas Pendências")
         if not df.empty:
             df_p = df[df['status'].isin(['Pendente', 'Adiado'])].copy()
             
-            # FILTRO DE PRIVACIDADE REFORÇADO (AQUI É ONDE ESTAVA VAZANDO)
+            # FILTRO DE PRIVACIDADE MESTRE
             if st.session_state['role'] == 'Padrão':
-                usuario_atual = str(st.session_state['user']).strip().lower()
-                # O filtro abaixo garante que ela só veja se o nome for IGUAL ao dela
-                df_p = df_p[df_p['responsavel'].astype(str).str.strip().str.lower() == usuario_atual]
+                usuario_limpo = str(st.session_state['user']).strip().lower()
+                df_p = df_p[df_p['responsavel'].astype(str).str.strip().str.lower() == usuario_limpo]
             
             if df_p.empty:
-                st.info("Não há pendências registradas para você.")
+                st.info("Nenhuma pendência encontrada.")
             else:
                 for _, row in df_p.iterrows():
                     with st.expander(f"📌 {row['titulo']} ({row['data_prazo']})"):
-                        # ... lógica dos botões de concluir/adiar ...
-                        # (O restante do código das colunas que já ajustamos antes)
+                        st.write(f"Descrição: {row['descricao']}")
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            if st.button("✅ Concluir", key=f"btn_c_{row['id']}"):
+                                atualizar_tarefa_planilha(row['id'], 'Concluído')
+                                st.rerun()
+                        with c2:
+                            if st.button("📅 Adiar p/ Amanhã", key=f"btn_a_{row['id']}"):
+                                nova_d = date.today() + timedelta(days=1)
+                                atualizar_tarefa_planilha(row['id'], 'Adiado', n_data=nova_d)
+                                st.rerun()
+                        if st.session_state['role'] == 'Administrador':
+                            if st.button(f"➡️ Direcionar p/ Aprendiz", key=f"btn_d_{row['id']}"):
+                                aba = conectar_google("Página1")
+                                cel = aba.find(str(row['id']))
+                                aba.update_cell(cel.row, 4, "Aprendiz")
+                                st.rerun()
+
     # --- PÁGINA: PERFIL ---
     elif st.session_state['page'] == 'profile':
         st.title("👤 Configurações")
-        st.write(f"Usuário: **{st.session_state.get('login_user', '---')}**")
+        st.write(f"Logado como: **{st.session_state.get('login_user', '---')}**")
         with st.form("f_senha"):
             n_s = st.text_input("Nova Senha", type="password")
             if st.form_submit_button("Alterar Senha"):
-                if atualizar_senha_planilha(st.session_state['login_user'], n_s):
-                    st.success("Senha atualizada!")
+                if len(n_s) >= 4:
+                    if atualizar_senha_planilha(st.session_state['login_user'], n_s):
+                        st.success("Senha atualizada!")
+                else: st.error("Senha muito curta.")
         if st.button("🚪 Sair"):
             st.session_state.clear()
             st.rerun()
@@ -199,7 +209,8 @@ else:
     elif st.session_state['page'] == 'report':
         st.title("📊 Relatório")
         if not df.empty:
-            df_c = df[df['status'] == 'Concluído']
+            df_c = df[df['status'] == 'Concluído'].copy()
             if st.session_state['role'] == 'Padrão':
-                df_c = df_c[df_c['responsavel'].str.lower() == st.session_state['user'].lower()]
+                usuario_limpo = str(st.session_state['user']).strip().lower()
+                df_c = df_c[df_c['responsavel'].astype(str).str.strip().str.lower() == usuario_limpo]
             st.dataframe(df_c)
