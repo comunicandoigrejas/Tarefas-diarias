@@ -9,7 +9,7 @@ import uuid
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Tarefas Diárias - Comunicando Igrejas", layout="wide", page_icon="📅")
 
-# --- ESTILO VISUAL (Roxo, Azul, Verde, Laranja e Amarelo) ---
+# --- ESTILO VISUAL ---
 st.markdown("""
     <style>
     .stApp { background-color: #1E0032; }
@@ -35,10 +35,7 @@ def conectar_google(aba_nome):
         creds_dict = st.secrets["gcp_service_account"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
-        try:
-            return client.open("Tarefas Diarias DB").worksheet(aba_nome)
-        except:
-            return client.open("Tarefas Diarias DB").get_worksheet(0)
+        return client.open("Tarefas Diarias DB").worksheet(aba_nome)
     except Exception as e:
         st.error(f"Erro de conexão: {e}")
         st.stop()
@@ -72,7 +69,6 @@ def carregar_tarefas():
             return pd.DataFrame(columns=['id', 'titulo', 'descricao', 'responsavel', 'data_prazo', 'hora_prazo', 'status', 'observacoes', 'motivo_adiamento', 'criado_por', 'recorrencia'])
         df = pd.DataFrame(dados)
         df.columns = [c.strip().lower() for c in df.columns]
-        # Limpeza para garantir que o filtro funcione
         if 'responsavel' in df.columns:
             df['responsavel'] = df['responsavel'].astype(str).str.strip()
         return df
@@ -112,10 +108,7 @@ if not st.session_state['logged_in']:
         if st.button("Entrar no Sistema"):
             user_data = validar_login(u, s)
             if user_data:
-                st.session_state.update({
-                    'logged_in': True, 'user': user_data['nome'], 
-                    'role': user_data['perfil'], 'login_user': u, 'page': 'home'
-                })
+                st.session_state.update({'logged_in': True, 'user': user_data['nome'], 'role': user_data['perfil'], 'login_user': u, 'page': 'home'})
                 st.rerun()
             else: st.error("Credenciais incorretas!")
 
@@ -140,10 +133,8 @@ else:
         st.title("☀️ Missões de Hoje")
         if not df.empty:
             hoje = date.today().strftime('%Y-%m-%d')
-            # Filtro: Apenas o que é de hoje
             df_hoje = df[(df['status'].isin(['Pendente', 'Adiado'])) & (df['data_prazo'].astype(str) == hoje)]
             
-            # TRAVA DE SEGURANÇA: Aprendiz só vê o dela
             if st.session_state['role'] == 'Padrão':
                 df_hoje = df_hoje[df_hoje['responsavel'].str.lower() == st.session_state['user'].lower()]
             
@@ -151,7 +142,7 @@ else:
                 for _, row in df_hoje.iterrows():
                     st.markdown(f"<div class='card-tarefa'><h4 style='color:yellow;'>🕒 {row['hora_prazo']} - {row['titulo']}</h4><p>Responsável: {row['responsavel']}</p></div>", unsafe_allow_html=True)
             else:
-                st.markdown("<div class='em-dia-card'>✅ Tudo em ordem por aqui!</div>", unsafe_allow_html=True)
+                st.markdown("<div class='em-dia-card'>✅ Tudo em ordem!</div>", unsafe_allow_html=True)
 
     # --- PÁGINA: AGENDAR ---
     elif st.session_state['page'] == 'add':
@@ -159,11 +150,7 @@ else:
         with st.form("form_novo"):
             titulo = st.text_input("Título")
             desc = st.text_area("Descrição")
-            # SELETOR DE RESPONSÁVEL
-            if st.session_state['role'] == 'Administrador':
-                resp = st.selectbox("Para quem?", ["Willian", "Aprendiz"])
-            else:
-                resp = st.session_state['user']
+            resp = st.selectbox("Para quem?", ["Willian", "Aprendiz"]) if st.session_state['role'] == 'Administrador' else st.session_state['user']
             c1, c2, c3 = st.columns(3)
             dt = c1.date_input("Data", date.today())
             hr = c2.time_input("Hora", time(9, 0))
@@ -177,15 +164,15 @@ else:
         st.title("📋 Gestão de Pendências")
         if not df.empty:
             df_p = df[df['status'].isin(['Pendente', 'Adiado'])]
-            
-            # FILTRO DE PRIVACIDADE: Aprendiz não vê o do Willian
             if st.session_state['role'] == 'Padrão':
                 df_p = df_p[df_p['responsavel'].str.lower() == st.session_state['user'].lower()]
             
             for _, row in df_p.iterrows():
-                with st.expander(f"📌 {row['titulo']} ({row['data_prazo']}) - {row['responsavel']}"):
-                    c1, c2, c3 = st.columns(3) if st.session_state['role'] == 'Administrador' else st.columns(2)
-                    with c1:
+                with st.expander(f"📌 {row['titulo']} ({row['data_prazo']})"):
+                    # Correção das colunas dinâmicas
+                    cols = st.columns(3) if st.session_state['role'] == 'Administrador' else st.columns(2)
+                    
+                    with cols[0]:
                         with st.form(f"f_c_{row['id']}"):
                             if st.form_submit_button("✅ Concluir"):
                                 atualizar_tarefa_planilha(row['id'], 'Concluído')
@@ -193,14 +180,15 @@ else:
                                     prox = pd.to_datetime(row['data_prazo']) + timedelta(days=1)
                                     salvar_tarefa(row['titulo'], row['descricao'], row['responsavel'], prox.date(), row['hora_prazo'], st.session_state['user'], "Diário")
                                 st.rerun()
-                    with c2:
+                    with cols[1]:
                         with st.form(f"f_a_{row['id']}"):
-                            nd = st.date_input("Adiar p/", value=pd.to_datetime(row['data_prazo']))
+                            nd = st.date_input("Adiar", value=pd.to_datetime(row['data_prazo']))
                             if st.form_submit_button("📅 Mudar Data"):
                                 atualizar_tarefa_planilha(row['id'], 'Adiado', n_data=nd)
                                 st.rerun()
-                    if st.session_state['role'] == 'Administrador':
-                        with c3:
+                    
+                    if st.session_state['role'] == 'Administrador' and len(cols) == 3:
+                        with cols[2]:
                             with st.form(f"f_d_{row['id']}"):
                                 if st.form_submit_button("➡️ P/ Aprendiz"):
                                     aba = conectar_google("Página1")
