@@ -9,18 +9,57 @@ import uuid
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Tarefas Diárias", layout="wide", page_icon="📅")
 
-# --- ESTILO VISUAL (Cores: Azul, Roxo, Verde, Laranja, Amarelo) ---
+# --- ESTILO VISUAL (Fundo Escuro para Máxima Visibilidade) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #ffffff; }
-    h1, h2, h3 { color: #4B0082; } /* Roxo */
-    .stButton>button {
-        background-color: #0000FF; color: white; border-radius: 10px; font-weight: bold; width: 100%;
+    /* Fundo principal em Roxo Escuro */
+    .stApp { 
+        background-color: #1E0032; 
     }
-    .stButton>button:hover { background-color: #FFA500; color: black; } /* Laranja */
-    .atraso-card { background-color: #FF4500; color: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
-    .em-dia-card { background-color: #32CD32; color: white; padding: 15px; border-radius: 10px; }
-    .info-card { background-color: #FFFF00; color: black; padding: 15px; border-radius: 10px; border: 1px solid #ddd; }
+    
+    /* Textos principais em Branco e Amarelo */
+    h1, h2, h3, p, span, label { 
+        color: #FFFFFF !important; 
+    }
+    
+    /* Input de texto com fundo claro para enxergar o que digita */
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Botões em Azul com letra Branca */
+    .stButton>button {
+        background-color: #0000FF !important; 
+        color: white !important; 
+        border: 2px solid #ffffff;
+        border-radius: 10px; 
+        font-weight: bold; 
+        height: 3em;
+    }
+    
+    /* Hover do botão em Laranja */
+    .stButton>button:hover { 
+        background-color: #FFA500 !important; 
+        color: black !important; 
+    }
+
+    /* Cards de Alerta */
+    .atraso-card { 
+        background-color: #FF4500; 
+        color: white; 
+        padding: 20px; 
+        border-radius: 10px; 
+        border: 2px solid yellow;
+        font-weight: bold;
+    }
+    
+    /* Expander (Acordeão) com fundo roxo médio */
+    .streamlit-expanderHeader {
+        background-color: #4B0082 !important;
+        color: white !important;
+        border-radius: 5px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
