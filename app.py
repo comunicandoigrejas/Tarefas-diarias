@@ -9,7 +9,7 @@ import uuid
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Tarefas Diárias - Comunicando Igrejas", layout="wide", page_icon="📅")
 
-# --- ESTILO VISUAL (Paleta solicitada) ---
+# --- ESTILO VISUAL (Roxo, Azul, Verde, Laranja e Amarelo) ---
 st.markdown("""
     <style>
     .stApp { background-color: #1E0032; }
@@ -53,14 +53,6 @@ def validar_login(user_input, pass_input):
         return None
     except: return None
 
-def atualizar_senha_planilha(login_user, nova_senha):
-    try:
-        aba = conectar_google("Usuarios")
-        celula = aba.find(str(login_user))
-        aba.update_cell(celula.row, 3, str(nova_senha))
-        return True
-    except: return False
-
 def carregar_tarefas():
     try:
         aba = conectar_google("Página1")
@@ -69,148 +61,128 @@ def carregar_tarefas():
             return pd.DataFrame(columns=['id', 'titulo', 'descricao', 'responsavel', 'data_prazo', 'hora_prazo', 'status', 'observacoes', 'motivo_adiamento', 'criado_por', 'recorrencia'])
         df = pd.DataFrame(dados)
         df.columns = [c.strip().lower() for c in df.columns]
+        
+        # Limpeza forçada de dados para garantir o filtro
+        df['responsavel'] = df['responsavel'].astype(str).str.strip()
+        df['status'] = df['status'].astype(str).str.strip()
+        
+        # --- AQUI É A TRAVA DE SEGURANÇA MÁXIMA ---
+        if st.session_state.get('role') == 'Padrão':
+            nome_usuario = str(st.session_state.get('user')).strip()
+            # Filtra o DataFrame para conter APENAS as tarefas dela antes de mostrar qualquer coisa
+            df = df[df['responsavel'].str.lower() == nome_usuario.lower()].copy()
+            
         return df
     except: return pd.DataFrame()
 
-def salvar_tarefa(titulo, desc, resp, d_prazo, h_prazo, criador, recorrencia="Única"):
-    try:
-        aba = conectar_google("Página1")
-        novo_id = str(uuid.uuid4())[:8]
-        aba.append_row([novo_id, titulo, desc, resp, str(d_prazo), str(h_prazo), 'Pendente', '', '', criador, recorrencia])
-        return True
-    except: return False
-
-def atualizar_tarefa_planilha(id_t, status, obs="", motivo="", n_data="", n_hora=""):
+def atualizar_tarefa_planilha(id_t, status, n_data=""):
     try:
         aba = conectar_google("Página1")
         celula = aba.find(str(id_t))
         row = celula.row
-        aba.update_cell(row, 7, status)
-        if status == 'Concluído': aba.update_cell(row, 8, obs)
-        elif status == 'Adiado':
-            aba.update_cell(row, 9, motivo)
-            aba.update_cell(row, 5, str(n_data))
+        aba.update_cell(row, 7, status) # Coluna Status
+        if n_data:
+            aba.update_cell(row, 5, str(n_data)) # Coluna Data
     except: pass
 
-# --- INÍCIO DO SISTEMA ---
+def salvar_tarefa(titulo, desc, resp, d_prazo, h_prazo, criador):
+    try:
+        aba = conectar_google("Página1")
+        novo_id = str(uuid.uuid4())[:8]
+        aba.append_row([novo_id, titulo, desc, resp, str(d_prazo), str(h_prazo), 'Pendente', '', '', criador, 'Única'])
+        return True
+    except: return False
+
+# --- LÓGICA DE LOGIN ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
     st.markdown("<h1 style='text-align:center;'>🙏 Comunicando Igrejas</h1>", unsafe_allow_html=True)
-    col_l, col_m, col_r = st.columns([1, 2, 1])
-    with col_m:
+    with st.container():
         u = st.text_input("Usuário")
         s = st.text_input("Senha", type="password")
         if st.button("Entrar"):
             user_data = validar_login(u, s)
             if user_data:
-                st.session_state.update({'logged_in': True, 'user': user_data['nome'], 'role': user_data['perfil'], 'login_user': u, 'page': 'home'})
+                st.session_state.update({
+                    'logged_in': True, 
+                    'user': user_data['nome'], 
+                    'role': user_data['perfil'], 
+                    'page': 'home'
+                })
                 st.rerun()
-            else: st.error("Login incorreto!")
+            else: st.error("Erro no login.")
 else:
-    # Menu Superior
-    cols_nav = st.columns(5)
-    with cols_nav[0]: 
+    # Navegação
+    col1, col2, col3, col4 = st.columns(4)
+    with col1: 
         if st.button("🏠 Início"): st.session_state['page'] = 'home'
-    with cols_nav[1]: 
+    with col2: 
         if st.button("📝 Agendar"): st.session_state['page'] = 'add'
-    with cols_nav[2]: 
+    with col3: 
         if st.button("📋 Pendências"): st.session_state['page'] = 'list'
-    with cols_nav[3]: 
-        if st.button("📊 Relatório"): st.session_state['page'] = 'report'
-    with cols_nav[4]: 
-        if st.button("👤 Perfil"): st.session_state['page'] = 'profile'
+    with col4: 
+        if st.button("🚪 Sair"): 
+            st.session_state.clear()
+            st.rerun()
 
-    df = carregar_tarefas()
+    # Carrega as tarefas (já filtradas pela função carregar_tarefas caso seja aprendiz)
+    df_geral = carregar_tarefas()
 
     # --- PÁGINA: HOME ---
     if st.session_state['page'] == 'home':
         st.title("☀️ Missões de Hoje")
-        if not df.empty:
-            hoje = date.today().strftime('%Y-%m-%d')
-            df_hoje = df[(df['status'].isin(['Pendente', 'Adiado'])) & (df['data_prazo'].astype(str) == hoje)].copy()
-            
-            # FILTRO DE PRIVACIDADE MESTRE
-            if st.session_state['role'] == 'Padrão':
-                usuario_limpo = str(st.session_state['user']).strip().lower()
-                df_hoje = df_hoje[df_hoje['responsavel'].astype(str).str.strip().str.lower() == usuario_limpo]
-            
-            if not df_hoje.empty:
-                for _, row in df_hoje.iterrows():
-                    st.markdown(f"<div class='card-tarefa'><h4 style='color:yellow;'>🕒 {row['hora_prazo']} - {row['titulo']}</h4><p>Responsável: {row['responsavel']}</p></div>", unsafe_allow_html=True)
-            else:
-                st.markdown("<div class='em-dia-card'>✅ Tudo em ordem! Nenhuma tarefa para hoje.</div>", unsafe_allow_html=True)
+        hoje = date.today().strftime('%Y-%m-%d')
+        df_hoje = df_geral[(df_geral['status'].isin(['Pendente', 'Adiado'])) & (df_geral['data_prazo'].astype(str) == hoje)]
+        
+        if not df_hoje.empty:
+            for _, row in df_hoje.iterrows():
+                st.markdown(f"<div class='card-tarefa'><h4 style='color:yellow;'>🕒 {row['hora_prazo']} - {row['titulo']}</h4><p>Responsável: {row['responsavel']}</p></div>", unsafe_allow_html=True)
+        else:
+            st.success("Glória a Deus! Tudo em ordem para hoje.")
 
     # --- PÁGINA: AGENDAR ---
     elif st.session_state['page'] == 'add':
-        st.title("📝 Novo Agendamento")
-        with st.form("form_novo"):
-            titulo = st.text_input("Título")
+        st.title("📝 Agendar")
+        with st.form("add_tarefa"):
+            titulo = st.text_input("Missão")
             desc = st.text_area("Descrição")
-            resp = st.selectbox("Responsável", ["Willian", "Aprendiz"]) if st.session_state['role'] == 'Administrador' else st.session_state['user']
-            c1, c2 = st.columns(2)
-            dt = c1.date_input("Data", date.today())
-            hr = c2.time_input("Hora", time(9, 0))
-            if st.form_submit_button("Agendar Missão"):
+            if st.session_state['role'] == 'Administrador':
+                resp = st.selectbox("Para quem?", ["Willian", "Aprendiz"])
+            else:
+                resp = st.session_state['user']
+            dt = st.date_input("Data", date.today())
+            hr = st.time_input("Hora", time(9,0))
+            if st.form_submit_button("Salvar"):
                 if salvar_tarefa(titulo, desc, resp, dt, hr, st.session_state['user']):
-                    st.success("Tarefa registrada!")
+                    st.success("Agendado!")
+                    st.rerun()
 
     # --- PÁGINA: PENDÊNCIAS ---
     elif st.session_state['page'] == 'list':
         st.title("📋 Minhas Pendências")
-        if not df.empty:
-            df_p = df[df['status'].isin(['Pendente', 'Adiado'])].copy()
-            
-            # FILTRO DE PRIVACIDADE MESTRE
-            if st.session_state['role'] == 'Padrão':
-                usuario_limpo = str(st.session_state['user']).strip().lower()
-                df_p = df_p[df_p['responsavel'].astype(str).str.strip().str.lower() == usuario_limpo]
-            
-            if df_p.empty:
-                st.info("Nenhuma pendência encontrada.")
-            else:
-                for _, row in df_p.iterrows():
-                    with st.expander(f"📌 {row['titulo']} ({row['data_prazo']})"):
-                        st.write(f"Descrição: {row['descricao']}")
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("✅ Concluir", key=f"btn_c_{row['id']}"):
-                                atualizar_tarefa_planilha(row['id'], 'Concluído')
-                                st.rerun()
-                        with c2:
-                            if st.button("📅 Adiar p/ Amanhã", key=f"btn_a_{row['id']}"):
-                                nova_d = date.today() + timedelta(days=1)
-                                atualizar_tarefa_planilha(row['id'], 'Adiado', n_data=nova_d)
-                                st.rerun()
-                        if st.session_state['role'] == 'Administrador':
-                            if st.button(f"➡️ Direcionar p/ Aprendiz", key=f"btn_d_{row['id']}"):
-                                aba = conectar_google("Página1")
-                                cel = aba.find(str(row['id']))
-                                aba.update_cell(cel.row, 4, "Aprendiz")
-                                st.rerun()
+        df_p = df_geral[df_geral['status'].isin(['Pendente', 'Adiado'])]
+        
+        if df_p.empty:
+            st.info("Nenhuma pendência encontrada.")
+        else:
+            for _, row in df_p.iterrows():
+                with st.expander(f"📌 {row['titulo']} ({row['data_prazo']})"):
+                    st.write(f"Descrição: {row['descricao']}")
+                    # Se for Admin, mostra botão de delegar, se não apenas concluir
+                    if st.button("✅ Concluir", key=f"c_{row['id']}"):
+                        atualizar_tarefa_planilha(row['id'], 'Concluído')
+                        st.rerun()
+                    
+                    if st.button("📅 Adiar p/ Amanhã", key=f"a_{row['id']}"):
+                        nova = date.today() + timedelta(days=1)
+                        atualizar_tarefa_planilha(row['id'], 'Adiado', n_data=nova)
+                        st.rerun()
 
-    # --- PÁGINA: PERFIL ---
-    elif st.session_state['page'] == 'profile':
-        st.title("👤 Configurações")
-        st.write(f"Logado como: **{st.session_state.get('login_user', '---')}**")
-        with st.form("f_senha"):
-            n_s = st.text_input("Nova Senha", type="password")
-            if st.form_submit_button("Alterar Senha"):
-                if len(n_s) >= 4:
-                    if atualizar_senha_planilha(st.session_state['login_user'], n_s):
-                        st.success("Senha atualizada!")
-                else: st.error("Senha muito curta.")
-        if st.button("🚪 Sair"):
-            st.session_state.clear()
-            st.rerun()
-
-    # --- PÁGINA: REPORT ---
-    elif st.session_state['page'] == 'report':
-        st.title("📊 Relatório")
-        if not df.empty:
-            df_c = df[df['status'] == 'Concluído'].copy()
-            if st.session_state['role'] == 'Padrão':
-                usuario_limpo = str(st.session_state['user']).strip().lower()
-                df_c = df_c[df_c['responsavel'].astype(str).str.strip().str.lower() == usuario_limpo]
-            st.dataframe(df_c)
+                    if st.session_state['role'] == 'Administrador':
+                        if st.button("➡️ Enviar para Aprendiz", key=f"d_{row['id']}"):
+                            aba = conectar_google("Página1")
+                            cel = aba.find(str(row['id']))
+                            aba.update_cell(cel.row, 4, "Aprendiz")
+                            st.rerun()
