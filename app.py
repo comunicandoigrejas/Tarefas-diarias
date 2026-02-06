@@ -139,24 +139,36 @@ else:
                     st.success("Registrado!")
                     st.rerun()
 
-    # --- PÁGINA: GESTÃO DE MISSÕES (COM QUEM É A DEMANDA) ---
+  # --- PÁGINA: GESTÃO DE MISSÕES ---
     elif st.session_state['page'] == 'list':
         st.title("📋 Gestão de Missões")
         if not df_geral.empty:
+            # Filtramos para mostrar o que não está concluído
             df_p = df_geral[df_geral['status'] != 'Concluído']
+            
             for _, row in df_p.iterrows():
-                # Aqui adicionamos o responsável no título para o Administrador identificar
                 label_resp = f" | Resp: {row['responsavel']}" if st.session_state['role'] == 'Administrador' else ""
-                with st.expander(f"📌 {row['titulo']} ({row['data_prazo']}){label_resp}"):
+                
+                with st.expander(f"📌 {row['titulo']} (Prazo: {row['data_prazo']}){label_resp}"):
                     st.write(f"**Descrição:** {row['descricao']}")
-                    novo_st = st.text_input("Status Atual", value=row['status'], key=f"s_{row['id']}")
-                    if st.button("Salvar Status", key=f"us_{row['id']}"):
-                        atualizar_tarefa_planilha(row['id'], status=novo_st)
-                        st.rerun()
                     
+                    # Campo de Status Atual
+                    # Ao digitar aqui e clicar no botão abaixo, ele salvará na coluna 7 da sua planilha
+                    novo_st = st.text_input("Atualizar Status (Ex: Em edição, Aguardando fotos)", value=row['status'], key=f"s_{row['id']}")
+                    
+                    if st.button("💾 Salvar Status na Planilha", key=f"us_{row['id']}"):
+                        # Chama a função que grava na planilha (coluna 7)
+                        if atualizar_tarefa_planilha(row['id'], status=novo_st):
+                            st.success(f"Status atualizado para: {novo_st}")
+                            t_time.sleep(1)
+                            st.rerun()
+                    
+                    st.markdown("---")
+                    # Botões de Ação (Concluir, Adiar, Direcionar)
                     c1, c2, c3 = st.columns(3)
                     with c1:
                         if st.button("✅ Concluir", key=f"c_{row['id']}"):
+                            # Quando conclui, o status final vira 'Concluído'
                             atualizar_tarefa_planilha(row['id'], status='Concluído')
                             st.rerun()
                     with c2:
