@@ -26,7 +26,6 @@ st.markdown("""
     .stButton>button {
         background-color: #0000FF !important; color: white !important; 
         border: 2px solid #ffffff; border-radius: 10px; font-weight: bold; width: 100%;
-        margin-top: 5px;
     }
     .chat-msg { padding: 10px; border-radius: 10px; margin-bottom: 5px; color: white; border-left: 5px solid; }
     .msg-eu { background-color: #006400; border-color: #FFFF00; }
@@ -101,8 +100,37 @@ else:
 
     df_geral = carregar_tarefas()
 
-    # --- PÁGINA: MISSÕES (REVISADA) ---
-    if st.session_state['page'] == 'list':
+    # --- PÁGINA: HOME (RESTAURADA) ---
+    if st.session_state['page'] == 'home':
+        st.title(f"☀️ Olá, {st.session_state['user']}!")
+        hoje_str = obter_agora_br().strftime('%Y-%m-%d')
+        st.subheader("📅 Missões para Hoje:")
+        if not df_geral.empty:
+            df_hoje = df_geral[(df_geral['data_prazo'].astype(str) == hoje_str) & (~df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False))]
+            if not df_hoje.empty:
+                for _, r in df_hoje.iterrows():
+                    st.markdown(f"<div style='background-color:#4B0082; padding:15px; border-radius:10px; border-left:5px solid #0000FF; margin-bottom:10px;'><h4>🕒 {r['hora_prazo']} - {r['titulo']}</h4></div>", unsafe_allow_html=True)
+            else:
+                st.success("Tudo limpo por hoje, benção!")
+        else:
+            st.info("Nenhuma missão cadastrada.")
+
+    # --- PÁGINA: AGENDAR ---
+    elif st.session_state['page'] == 'add':
+        st.title("📝 Nova Missão")
+        with st.form("f_add"):
+            t = st.text_input("Título")
+            d = st.text_area("Descrição")
+            r = st.selectbox("Responsável", ["Willian", "Aprendiz"])
+            dt = st.date_input("Data", date.today())
+            hr = st.time_input("Hora", time(9,0))
+            rec = st.selectbox("Recorrência", ["Única", "Diário", "Semanal", "Mensal"])
+            if st.form_submit_button("Agendar"):
+                conectar_google("Página1").append_row([str(uuid.uuid4())[:8], t, d, r, str(dt), str(hr), 'Iniciado', '', '', st.session_state['user'], rec])
+                st.success("Missão agendada com sucesso!"); t_time.sleep(1); st.rerun()
+
+    # --- PÁGINA: MISSÕES (BOTOES REFORÇADOS) ---
+    elif st.session_state['page'] == 'list':
         st.title("📋 Painel de Missões")
         if not df_geral.empty:
             df_vivas = df_geral[~df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False)]
@@ -112,64 +140,56 @@ else:
                     st.write(f"**Descrição:** {row['descricao']}")
                     st.markdown(f"<div class='hist-box'>{row['status']}</div>", unsafe_allow_html=True)
                     
-                    # Atualização de comentário
                     n_coment = st.text_input("Adicionar comentário:", key=f"att_{row['id']}")
                     if st.button("💾 Salvar Comentário", key=f"btn_{row['id']}"):
                         atualizar_tarefa_planilha(row['id'], novo_comentario=n_coment); st.rerun()
                     
                     st.divider()
-                    
-                    # BOTÕES DE AÇÃO (ORGANIZAÇÃO VERTICAL PARA NÃO SUMIR)
                     col_b1, col_b2 = st.columns(2)
                     with col_b1:
-                        if st.button("✅ CONCLUIR MISSÃO", key=f"c_{row['id']}"):
+                        if st.button("✅ CONCLUIR", key=f"c_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Concluído'); st.rerun()
-                    
                     with col_b2:
                         dest = "Aprendiz" if st.session_state['role'] == 'Administrador' else "Willian"
                         if st.button(f"➡️ ENVIAR PARA {dest.upper()}", key=f"m_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], responsavel=dest, novo_comentario=f"Transferido para {dest}"); st.rerun()
                     
-                    st.write("---")
                     st.write("📅 **Adiar Missão:**")
-                    n_dt = st.date_input("Escolha a nova data:", value=date.today()+timedelta(days=1), key=f"dt_{row['id']}")
+                    n_dt = st.date_input("Nova data:", value=date.today()+timedelta(days=1), key=f"dt_{row['id']}")
                     if st.button("⏳ CONFIRMAR ADIAMENTO", key=f"a_{row['id']}"):
                         atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
-    # --- PÁGINA: CHAT ---
+    # --- PÁGINA: CHAT (COM RESPOSTA E BAIXA RESTAURADOS) ---
     elif st.session_state['page'] == 'chat':
-        st.title("💬 Chat")
+        st.title("💬 Mural de Comunicação")
         aba_c = conectar_google("Chat")
         df_c = pd.DataFrame(aba_c.get_all_records())
+        
+        df_ativos = pd.DataFrame()
         if not df_c.empty:
             df_c['status'] = df_c['status'].fillna('Ativo')
             df_ativos = df_c[df_c['status'] != 'Baixado']
             for idx, msg in df_ativos.iterrows():
                 classe = "msg-eu" if msg['remetente'] == st.session_state['user'] else "msg-outro"
                 st.markdown(f"<div class='chat-msg {classe}'><small>{msg['remetente']} - {msg['data_hora']}</small><br>{msg['mensagem']}</div>", unsafe_allow_html=True)
-                if st.button("📥 Baixar", key=f"bx_{idx}"):
+                if st.button("📥 Baixar Mensagem", key=f"bx_{idx}"):
                     aba_c.update_cell(idx + 2, 5, "Baixado"); st.rerun()
         
+        st.divider()
+        st.subheader("Enviar Mensagem")
         with st.form("f_chat", clear_on_submit=True):
-            txt = st.text_area("Mensagem:")
+            # Restaurado o sistema de resposta
+            opcoes_res = ["Nenhuma"] + (df_ativos['mensagem'].tail(10).tolist() if not df_ativos.empty else [])
+            resp_a = st.selectbox("Responder a:", opcoes_res)
+            txt_msg = st.text_area("Sua mensagem:")
             if st.form_submit_button("Enviar"):
-                aba_c.append_row([obter_agora_br().strftime('%d/%m %H:%M'), st.session_state['user'], "Todos", txt, "Ativo"])
-                st.rerun()
+                if txt_msg:
+                    final = f"↪️ Resp: {resp_a}\n---\n{txt_msg}" if resp_a != "Nenhuma" else txt_msg
+                    aba_c.append_row([obter_agora_br().strftime('%d/%m %H:%M'), st.session_state['user'], "Todos", final, "Ativo"])
+                    st.rerun()
 
-    # --- RESTANTE DAS PÁGINAS MANTIDAS ---
-    elif st.session_state['page'] == 'home':
-        st.title(f"☀️ Olá, {st.session_state['user']}!")
-    elif st.session_state['page'] == 'add':
-        st.title("📝 Agendar")
-        with st.form("ag"):
-            t = st.text_input("Título")
-            r = st.selectbox("Responsável", ["Willian", "Aprendiz"])
-            dt = st.date_input("Data", date.today())
-            hr = st.time_input("Hora", time(9,0))
-            rec = st.selectbox("Recorrência", ["Única", "Diário", "Semanal", "Mensal"])
-            if st.form_submit_button("Agendar"):
-                conectar_google("Página1").append_row([str(uuid.uuid4())[:8], t, "", r, str(dt), str(hr), 'Iniciado', '', '', st.session_state['user'], rec])
-                st.success("OK!"); st.rerun()
+    # --- PÁGINA: RELATÓRIO ---
     elif st.session_state['page'] == 'report':
         st.title("📊 Relatório")
-        st.dataframe(df_geral[df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False)])
+        if not df_geral.empty:
+            st.dataframe(df_geral[df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False)])
