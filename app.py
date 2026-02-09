@@ -160,6 +160,7 @@ else:
                         atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
     # --- PÁGINA: CHAT (COM RESPOSTA E BAIXA RESTAURADOS) ---
+   # --- PÁGINA: CHAT (REPARADA) ---
     elif st.session_state['page'] == 'chat':
         st.title("💬 Mural de Comunicação")
         aba_c = conectar_google("Chat")
@@ -168,26 +169,31 @@ else:
         df_ativos = pd.DataFrame()
         if not df_c.empty:
             df_c['status'] = df_c['status'].fillna('Ativo')
+            # Filtra apenas o que não recebeu baixa
             df_ativos = df_c[df_c['status'] != 'Baixado']
+            
             for idx, msg in df_ativos.iterrows():
                 classe = "msg-eu" if msg['remetente'] == st.session_state['user'] else "msg-outro"
                 st.markdown(f"<div class='chat-msg {classe}'><small>{msg['remetente']} - {msg['data_hora']}</small><br>{msg['mensagem']}</div>", unsafe_allow_html=True)
                 if st.button("📥 Baixar Mensagem", key=f"bx_{idx}"):
-                    aba_c.update_cell(idx + 2, 5, "Baixado"); st.rerun()
+                    aba_c.update_cell(idx + 2, 5, "Baixado")
+                    st.rerun()
         
         st.divider()
         st.subheader("Enviar Mensagem")
         with st.form("f_chat", clear_on_submit=True):
-            # Restaurado o sistema de resposta
-            opcoes_res = ["Nenhuma"] + (df_ativos['mensagem'].tail(10).tolist() if not df_ativos.empty else [])
-            resp_a = st.selectbox("Responder a:", opcoes_res)
+            # AQUI ESTÁ A CORREÇÃO:
+            # Pegamos as últimas 50 mensagens ATIVAS e invertemos (reversed) para a mais nova vir primeiro
+            lista_mensagens_ativas = df_ativos['mensagem'].tolist() if not df_ativos.empty else []
+            opcoes_res = ["Nenhuma"] + list(reversed(lista_mensagens_ativas[-50:]))
+            
+            resp_a = st.selectbox("Responder a:", opcoes_res, help="As perguntas que já receberam baixa não aparecem aqui.")
             txt_msg = st.text_area("Sua mensagem:")
             if st.form_submit_button("Enviar"):
                 if txt_msg:
                     final = f"↪️ Resp: {resp_a}\n---\n{txt_msg}" if resp_a != "Nenhuma" else txt_msg
                     aba_c.append_row([obter_agora_br().strftime('%d/%m %H:%M'), st.session_state['user'], "Todos", final, "Ativo"])
                     st.rerun()
-
     # --- PÁGINA: RELATÓRIO ---
     elif st.session_state['page'] == 'report':
         st.title("📊 Relatório")
