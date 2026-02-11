@@ -52,27 +52,18 @@ def carregar_tarefas():
         df = pd.DataFrame(aba.get_all_records())
         if df.empty: return df
         df.columns = [c.strip().lower() for c in df.columns]
-        
-        # Ordenação por data
         df['data_prazo_dt'] = pd.to_datetime(df['data_prazo'], errors='coerce')
         df = df.sort_values(by=['data_prazo_dt', 'hora_prazo'], ascending=[True, True])
         
-        # --- AJUSTE NO FILTRO DE PRIVACIDADE ---
-        # Transformamos tudo para minúsculo e tiramos espaços para não ter erro
+        # Filtro de Privacidade atualizado para "Bia"
         df['responsavel_limpo'] = df['responsavel'].astype(str).str.strip().str.lower()
-        
         user_atual = str(st.session_state.get('user')).strip().lower()
-        role_atual = st.session_state.get('role')
-
-        if role_atual != 'Administrador':
-            # Se for aprendiz, ela só vê o que é dela
+        
+        if st.session_state.get('role') != 'Administrador':
             df = df[df['responsavel_limpo'] == user_atual].copy()
-        # Se for Willian (Admin), ele continua vendo TUDO.
             
         return df
-    except Exception as e:
-        st.error(f"Erro ao carregar: {e}")
-        return pd.DataFrame()
+    except: return pd.DataFrame()
 
 def atualizar_tarefa_planilha(id_t, status_final=None, responsavel=None, nova_data=None, novo_comentario=None):
     try:
@@ -106,6 +97,7 @@ if not st.session_state['logged_in']:
     u = st.text_input("Usuário").strip()
     s = st.text_input("Senha", type="password")
     if st.button("Entrar"):
+        # Login agora aceita "Bia"
         role = 'Administrador' if u.lower() == 'willian' else 'Aprendiz'
         st.session_state.update({'logged_in': True, 'user': u, 'role': role, 'page': 'home'})
         st.rerun()
@@ -128,10 +120,9 @@ else:
         st.subheader("📅 Para Hoje:")
         if not df_geral.empty:
             df_hoje = df_geral[(df_geral['data_prazo'].astype(str) == hoje_str) & (~df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False))]
-            if not df_hoje.empty:
-                for _, r in df_hoje.iterrows():
-                    st.markdown(f"<div style='background-color:#4B0082; padding:15px; border-radius:10px; border-left:5px solid #0000FF; margin-bottom:10px;'><h4>🕒 {r['hora_prazo']} - {r['titulo']}</h4></div>", unsafe_allow_html=True)
-            else: st.success("Nada pendente para hoje!")
+            for _, r in df_hoje.iterrows():
+                st.markdown(f"<div style='background-color:#4B0082; padding:15px; border-radius:10px; border-left:5px solid #0000FF; margin-bottom:10px;'><h4>🕒 {r['hora_prazo']} - {r['titulo']}</h4></div>", unsafe_allow_html=True)
+        else: st.success("Nada pendente, benção!")
 
     # --- PÁGINA: AGENDAR ---
     elif st.session_state['page'] == 'add':
@@ -139,7 +130,8 @@ else:
         with st.form("f_add"):
             t = st.text_input("Título")
             d = st.text_area("Descrição")
-            r = st.selectbox("Responsável", ["Willian", "Aprendiz"])
+            # Atualizado para "Bia"
+            r = st.selectbox("Responsável", ["Willian", "Bia"])
             dt = st.date_input("Data", date.today())
             hr = st.time_input("Hora", time(9,0))
             rec = st.selectbox("Recorrência", ["Única", "Diário", "Semanal", "Mensal"])
@@ -147,7 +139,7 @@ else:
                 if salvar_missao(t, d, r, dt, hr, st.session_state['user'], rec):
                     st.success("Salvo!"); t_time.sleep(1); st.rerun()
 
-    # --- PÁGINA: MISSÕES (COM CAMPO DE OBSERVAÇÃO RESTAURADO) ---
+    # --- PÁGINA: MISSÕES ---
     elif st.session_state['page'] == 'list':
         st.title("📋 Painel de Missões")
         if not df_geral.empty:
@@ -158,8 +150,7 @@ else:
                     st.write(f"**Descrição:** {row['descricao']}")
                     st.markdown(f"<div class='hist-box'>{row['status']}</div>", unsafe_allow_html=True)
                     
-                    # --- RESTAURAÇÃO DO CAMPO DE OBSERVAÇÃO ---
-                    obs_txt = st.text_input("Registrar observação/andamento:", key=f"obs_{row['id']}")
+                    obs_txt = st.text_input("Registrar observação:", key=f"obs_{row['id']}")
                     if st.button("💾 Salvar Observação", key=f"btn_obs_{row['id']}"):
                         if obs_txt:
                             atualizar_tarefa_planilha(row['id'], novo_comentario=obs_txt)
@@ -167,7 +158,6 @@ else:
                     
                     st.divider()
                     
-                    # Botão Concluir com Recorrência
                     if st.button("✅ CONCLUIR MISSÃO", key=f"c_{row['id']}"):
                         atualizar_tarefa_planilha(row['id'], status_final='Concluído')
                         if str(row.get('recorrencia', '')).strip().capitalize() == "Diário":
@@ -175,10 +165,10 @@ else:
                             salvar_missao(row['titulo'], row['descricao'], row['responsavel'], amanha, row['hora_prazo'], "Sistema", "Diário")
                         st.rerun()
                     
-                    # Transferir e Adiar
                     c1, c2 = st.columns(2)
                     with c1:
-                        dest = "Aprendiz" if st.session_state['role'] == 'Administrador' else "Willian"
+                        # Direcionamento agora para "Bia"
+                        dest = "Bia" if st.session_state['role'] == 'Administrador' else "Willian"
                         if st.button(f"➡️ Para {dest}", key=f"t_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], responsavel=dest, novo_comentario=f"Transferido para {dest}"); st.rerun()
                     with c2:
@@ -209,7 +199,6 @@ else:
                 aba_c.append_row([obter_agora_br().strftime('%d/%m %H:%M'), st.session_state['user'], "Todos", final, "Ativo"])
                 st.rerun()
 
-    # --- PÁGINA: RELATÓRIO ---
     elif st.session_state['page'] == 'report':
         st.title("📊 Relatório")
         if not df_geral.empty:
