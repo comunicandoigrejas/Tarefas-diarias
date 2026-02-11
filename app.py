@@ -52,13 +52,27 @@ def carregar_tarefas():
         df = pd.DataFrame(aba.get_all_records())
         if df.empty: return df
         df.columns = [c.strip().lower() for c in df.columns]
+        
+        # Ordenação por data
         df['data_prazo_dt'] = pd.to_datetime(df['data_prazo'], errors='coerce')
         df = df.sort_values(by=['data_prazo_dt', 'hora_prazo'], ascending=[True, True])
+        
+        # --- AJUSTE NO FILTRO DE PRIVACIDADE ---
+        # Transformamos tudo para minúsculo e tiramos espaços para não ter erro
         df['responsavel_limpo'] = df['responsavel'].astype(str).str.strip().str.lower()
-        if st.session_state.get('role') != 'Administrador':
-            df = df[df['responsavel_limpo'] == str(st.session_state.get('user')).lower()].copy()
+        
+        user_atual = str(st.session_state.get('user')).strip().lower()
+        role_atual = st.session_state.get('role')
+
+        if role_atual != 'Administrador':
+            # Se for aprendiz, ela só vê o que é dela
+            df = df[df['responsavel_limpo'] == user_atual].copy()
+        # Se for Willian (Admin), ele continua vendo TUDO.
+            
         return df
-    except: return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erro ao carregar: {e}")
+        return pd.DataFrame()
 
 def atualizar_tarefa_planilha(id_t, status_final=None, responsavel=None, nova_data=None, novo_comentario=None):
     try:
