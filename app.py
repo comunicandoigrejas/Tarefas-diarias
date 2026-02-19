@@ -169,9 +169,9 @@ else:
                             """, unsafe_allow_html=True)
                         with col_btn:
                             # O botão que leva para a execução
-             if st.button(f"🚀 Executar", key=f"exec_{r['id']}"):
-                 st.session_state['page'] = 'list'
-                  st.session_state['tarefa_foco'] = str(r['id']) # Guardamos o ID da missão
+                 if st.button(f"🚀 Executar", key=f"exec_{r['id']}"):
+                   st.session_state['page'] = 'list'
+                    st.session_state['tarefa_foco'] = str(r['id']) # Guardamos o ID da missão
                     st.rerun()
         else:
             st.info("Nenhuma missão registrada no sistema ainda.")
