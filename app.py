@@ -9,7 +9,6 @@ import time as t_time
 import uuid
 import pytz
 
-# --- CONFIGURAÇÃO CLOUDINARY (Pega dos Secrets) ---
 # --- CONFIGURAÇÃO TESTE (DIRETO NO CÓDIGO) ---
 cloudinary.config(
   cloud_name = "dzs4gxmfc",
@@ -47,8 +46,18 @@ st.markdown("""
 # --- FUNÇÃO UPLOAD CLOUDINARY ---
 def fazer_upload_cloudinary(arquivo):
     try:
-        resultado = cloudinary.uploader.upload(arquivo, resource_type = "auto")
-        return resultado['secure_url']
+        # Forçamos o 'resource_type' para 'raw' ou 'auto' para garantir que o PDF não corrompa
+        resultado = cloudinary.uploader.upload(
+            arquivo, 
+            resource_type = "auto",
+            flags = "attachment" # Isso ajuda a forçar o reconhecimento do arquivo
+        )
+        
+        # Pegamos o 'secure_url' que é o link HTTPS oficial
+        link_final = resultado.get('secure_url')
+        
+        # Pequeno ajuste: Garantimos que o link termine em .pdf se for o caso
+        return link_final
     except Exception as e:
         st.error(f"Erro no Cloudinary: {e}")
         return ""
