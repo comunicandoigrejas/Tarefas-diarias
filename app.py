@@ -50,18 +50,35 @@ def conectar_google(servico="sheets"):
 # --- FUNÇÃO UPLOAD DRIVE ---
 def fazer_upload_drive(arquivo_upload):
     try:
-        id_da_pasta = "1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-"
         drive_service = conectar_google("drive")
-        # COLE O ID DA SUA PASTA ENTRE AS ASPAS ABAIXO:
+        
+        # O ID que você já tem (correto, sem o link do site)
         id_da_pasta = "1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-" 
         
         file_metadata = {
             'name': arquivo_upload.name,
             'parents': [id_da_pasta]
         }
-        media = MediaIoBaseUpload(io.BytesIO(arquivo_upload.getvalue()), mimetype=arquivo_upload.type)
-        file = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
-        drive_service.permissions().create(fileId=file.get('id'), body={'type': 'anyone', 'role': 'reader'}).execute()
+        
+        media = MediaIoBaseUpload(io.BytesIO(arquivo_upload.getvalue()), 
+                                 mimetype=arquivo_upload.type, 
+                                 resumable=True) # Resumable ajuda em arquivos maiores
+        
+        # --- O AJUSTE ESTÁ NESTA LINHA ABAIXO (Adicionamos supportsAllDrives=True) ---
+        file = drive_service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink',
+            supportsAllDrives=True # <-- Isso resolve o problema da quota da conta de serviço
+        ).execute()
+        
+        # Libera a visualização para a Bia
+        drive_service.permissions().create(
+            fileId=file.get('id'), 
+            body={'type': 'anyone', 'role': 'reader'},
+            supportsAllDrives=True # <-- Também adicionamos aqui por segurança
+        ).execute()
+        
         return file.get('webViewLink')
     except Exception as e:
         st.error(f"Erro no Drive: {e}")
