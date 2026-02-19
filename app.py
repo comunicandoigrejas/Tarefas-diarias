@@ -182,7 +182,7 @@ else:
                     
                     # EXIBE BOTÃO SE HOUVER ANEXO
                     if row.get('link_anexo'):
-                        st.markdown(f'<a href="{row["link_anexo"]}" target="_blank"><button style="background-color:#FFA500; color:black; border:none; padding:10px; border-radius:5px; width:100%; font-weight:bold;">📂 ABRIR ANEXO</button></a>', unsafe_allow_html=True)
+                        st.markdown(f'<a href="{row["link_anexo"]}" target="_blank"><button style="background-color:#ff00ff; color:black; border:none; padding:10px; border-radius:5px; width:100%; font-weight:bold;">📂 ABRIR ANEXO</button></a>', unsafe_allow_html=True)
                     
                     st.markdown(f"<div class='hist-box'>{row['status']}</div>", unsafe_allow_html=True)
                     obs = st.text_input("Obs:", key=f"obs_{row['id']}")
