@@ -200,13 +200,28 @@ else:
                     st.success("Salvo!"); t_time.sleep(1); st.rerun()
 
     # --- PÁGINA: MISSÕES ---
+    # --- PÁGINA: MISSÕES ---
     elif st.session_state['page'] == 'list':
         st.title("📋 Missões")
+        
+        # Recuperamos o ID que veio da Home (se existir)
+        foco_id = st.session_state.get('tarefa_foco', None)
+        
         if not df_geral.empty:
             df_vivas = df_geral[~df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False)]
             for _, row in df_vivas.iterrows():
-                with st.expander(f"📌 [{row['responsavel'].upper()}] {row['titulo']} - {row['data_prazo']}"):
+                # A MÁGICA ESTÁ AQUI: 
+                # Se o ID da tarefa for o mesmo que clicamos na Home, 'expanded' será True
+                abrir_caixa = (str(row['id']) == foco_id)
+                
+                with st.expander(f"📌 [{row['responsavel'].upper()}] {row['titulo']} - {row['data_prazo']}", expanded=abrir_caixa):
                     st.write(f"**Descrição:** {row['descricao']}")
+                    
+                    # Limpa o foco após abrir para não ficar abrindo sempre a mesma
+                    if abrir_caixa:
+                        st.session_state['tarefa_foco'] = None
+                    
+                    # ... (resto do seu código de botões, anexos e conclusões)
                     
                     # EXIBE BOTÃO SE HOUVER ANEXO
                     if row.get('link_anexo'):
