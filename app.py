@@ -245,40 +245,58 @@ else:
                         if st.button("⏳ Confirmar", key=f"ba_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
-    # --- PÁGINA: CHAT ---
+   # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         aba_c = conectar_google("Chat")
         
-        # 1. BOTÃO PARA LIMPAR (Somente Willian vê)
+        # Criamos um segredo nos Secrets ou usamos um estado para a "Limpeza Visual"
+        if 'limite_chat' not in st.session_state:
+            st.session_state['limite_chat'] = 0
+
+        # 1. BOTÃO PARA LIMPAR VISUALMENTE (Somente Willian)
         if st.session_state['role'] == 'Administrador':
-            if st.button("🗑️ Limpar Conversa (Zerar Planilha)"):
-                # Mantém apenas o cabeçalho da planilha
-                aba_c.resize(rows=1)
-                aba_c.resize(rows=100)
-                st.success("Conversa eliminada!")
-                t_time.sleep(1)
-                st.rerun()
+            if st.button("🧹 Limpar Tela do Chat (Mantém na Planilha)"):
+                try:
+                    df_temp = pd.DataFrame(aba_c.get_all_records())
+                    # Guardamos o número da última linha para esconder o que veio antes
+                    st.session_state['limite_chat'] = len(df_temp)
+                    st.success("Tela limpa! O histórico antigo foi preservado na planilha.")
+                    t_time.sleep(1)
+                    st.rerun()
+                except: pass
 
         # 2. EXIBIÇÃO DAS MENSAGENS
         try:
             df_c = pd.DataFrame(aba_c.get_all_records())
             if not df_c.empty:
-                for idx, msg in df_c.tail(20).iterrows():
-                    # Define a cor baseada em quem enviou
+                # Aplicamos o filtro de visualização
+                inicio = st.session_state['limite_chat']
+                df_exibir = df_c.iloc[inicio:].tail(20) # Mostra apenas após a limpeza
+                
+                for idx, msg in df_exibir.iterrows():
                     classe = "msg-eu" if msg['remetente'] == st.session_state['user'] else "msg-outro"
                     st.markdown(f"<div class='chat-msg {classe}'><b>{msg['remetente']}:</b><br>{msg['mensagem']}</div>", unsafe_allow_html=True)
+                
+                # Criamos a lista de opções para o seletor de resposta
+                lista_msgs = df_exibir['mensagem'].tolist()
             else:
-                st.info("Nenhuma mensagem por aqui. Comece a conversa!")
+                lista_msgs = ["Nenhuma mensagem anterior"]
         except:
-            st.warning("Inicie o chat enviando a primeira mensagem.")
+            lista_msgs = ["Erro ao carregar mensagens"]
 
-        # 3. CAMPO PARA RESPONDER
+        # 3. CAMPO PARA RESPONDER COM SELEÇÃO
         st.divider()
         with st.form("form_chat", clear_on_submit=True):
-            nova_msg = st.text_area("Sua mensagem para a Bia:", placeholder="Digite aqui...")
+            st.markdown("### 📝 Responder a:")
+            msg_referencia = st.selectbox("Selecione a mensagem que deseja comentar:", reversed(lista_msgs))
+            
+            nova_msg = st.text_area("Sua resposta ou comentário:", placeholder="Escreva aqui...")
+            
             if st.form_submit_button("Enviar Resposta"):
                 if nova_msg:
                     agora = obter_agora_br().strftime('%d/%m %H:%M')
-                    aba_c.append_row([st.session_state['user'], nova_msg, agora])
+                    # Montamos a mensagem citando a anterior
+                    msg_final = f"📌 REP: '{msg_referencia[:30]}...' \n\n {nova_msg}"
+                    aba_c.append_row([st.session_state['user'], msg_final, agora])
                     st.rerun()
