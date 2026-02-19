@@ -11,9 +11,10 @@ import pytz
 
 # --- CONFIGURAÇÃO CLOUDINARY (Pega dos Secrets) ---
 cloudinary.config(
-  cloud_name = st.secrets["dzs4gxmfc"],
-  api_key = st.secrets["627471382294285"],
-  api_secret = st.secrets["D4yDdj6Zq5m47G9qUBeGx0KbK20"]
+  cloud_name = st.secrets["CLOUDINARY_CLOUD_NAME"],
+  api_key = st.secrets["CLOUDINARY_API_KEY"],
+  api_secret = st.secrets["CLOUDINARY_API_SECRET"]
+)
 )
 
 # --- CONFIGURAÇÃO DE FUSO HORÁRIO ---
