@@ -52,7 +52,13 @@ def fazer_upload_drive(arquivo_upload):
     try:
         id_da_pasta = "https://drive.google.com/drive/folders/1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-?usp=drive_link"
         drive_service = conectar_google("drive")
-        file_metadata = {'name': arquivo_upload.name}
+        # COLE O ID DA SUA PASTA ENTRE AS ASPAS ABAIXO:
+        id_da_pasta = "SEU_ID_AQUI" 
+        
+        file_metadata = {
+            'name': arquivo_upload.name,
+            'parents': [id_da_pasta]
+        }
         media = MediaIoBaseUpload(io.BytesIO(arquivo_upload.getvalue()), mimetype=arquivo_upload.type)
         file = drive_service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
         drive_service.permissions().create(fileId=file.get('id'), body={'type': 'anyone', 'role': 'reader'}).execute()
