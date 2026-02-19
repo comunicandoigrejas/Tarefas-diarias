@@ -43,21 +43,24 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNÇÃO UPLOAD CLOUDINARY ---
 def fazer_upload_cloudinary(arquivo):
     try:
-        # Forçamos o 'resource_type' para 'raw' ou 'auto' para garantir que o PDF não corrompa
+        # Usamos resource_type="auto" para o Cloudinary decidir o tipo certo
         resultado = cloudinary.uploader.upload(
             arquivo, 
-            resource_type = "auto",
-            flags = "attachment" # Isso ajuda a forçar o reconhecimento do arquivo
+            resource_type="auto"
         )
         
-        # Pegamos o 'secure_url' que é o link HTTPS oficial
-        link_final = resultado.get('secure_url')
+        # Pegamos o link seguro
+        link = resultado.get('secure_url')
         
-        # Pequeno ajuste: Garantimos que o link termine em .pdf se for o caso
-        return link_final
+        # O TRUQUE PARA PDF:
+        # Se o link vier como 'image', trocamos para 'raw' manualmente 
+        # para o navegador não se confundir ao abrir.
+        if ".pdf" in arquivo.name.lower():
+            link = link.replace("/image/upload/", "/raw/upload/")
+            
+        return link
     except Exception as e:
         st.error(f"Erro no Cloudinary: {e}")
         return ""
