@@ -50,10 +50,10 @@ def conectar_google(servico="sheets"):
 # --- FUNÇÃO UPLOAD DRIVE ---
 def fazer_upload_drive(arquivo_upload):
     try:
-        id_da_pasta = "https://drive.google.com/drive/folders/1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-?usp=drive_link"
+        id_da_pasta = "1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-"
         drive_service = conectar_google("drive")
         # COLE O ID DA SUA PASTA ENTRE AS ASPAS ABAIXO:
-        id_da_pasta = "https://drive.google.com/drive/folders/1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-" 
+        id_da_pasta = "1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-" 
         
         file_metadata = {
             'name': arquivo_upload.name,
