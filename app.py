@@ -246,68 +246,67 @@ else:
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
   # --- PÁGINA: CHAT ---
+  # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
-        aba_c = conectar_google("Chat")
         
-        # Criamos uma lista no estado da sessão para guardar o que queremos esconder
-        if 'msgs_ocultas' not in st.session_state:
-            st.session_state['msgs_ocultas'] = []
-
-        # 1. RECUPERAÇÃO E EXIBIÇÃO DAS MENSAGENS
         try:
-            # Pegamos os dados e adicionamos um índice para servir de ID único
+            aba_c = conectar_google("Chat")
             dados_chat = aba_c.get_all_records()
             df_c = pd.DataFrame(dados_chat)
             
+            if 'msgs_ocultas' not in st.session_state:
+                st.session_state['msgs_ocultas'] = []
+
             if not df_c.empty:
+                # 1. FILTRO DE LIMPEZA EM MASSA (No topo para ser rápido)
+                with st.expander("🧹 Limpeza Rápida (Arquivar Conversas)"):
+                    # Filtramos apenas as que ainda estão visíveis
+                    opcoes_limpeza = [f"{idx} - {m['mensagem'][:40]}..." for idx, m in df_c.iterrows() if idx not in st.session_state['msgs_ocultas']]
+                    selecionadas = st.multiselect("Selecione as conversas já finalizadas:", opcoes_limpeza)
+                    
+                    if st.button("Confirmar Arquivamento"):
+                        for s in selecionadas:
+                            # Extraímos o ID (índice) que colocamos no início do texto
+                            idx_limpar = int(s.split(" - ")[0])
+                            st.session_state['msgs_ocultas'].append(idx_limpar)
+                        st.success("Conversas arquivadas visualmente!")
+                        t_time.sleep(1)
+                        st.rerun()
+
+                # 2. EXIBIÇÃO DAS MENSAGENS ATIVAS (Sem botões individuais para não pesar)
                 st.subheader("Conversas Ativas")
-                for idx, msg in df_c.iterrows():
-                    # SÓ MOSTRA SE NÃO ESTIVER NA LISTA DE OCULTAS
-                    if idx not in st.session_state['msgs_ocultas']:
-                        col_msg, col_acao = st.columns([4, 1])
-                        
-                        with col_msg:
-                            classe = "msg-eu" if msg['remetente'] == st.session_state['user'] else "msg-outro"
-                            st.markdown(f"<div class='chat-msg {classe}'><b>{msg['remetente']}:</b><br>{msg['mensagem']}</div>", unsafe_allow_html=True)
-                        
-                        with col_acao:
-                            # Botão para remover especificamente esta conversa da tela
-                            if st.button("✅", key=f"hide_{idx}", help="Finalizar e tirar da tela"):
-                                st.session_state['msgs_ocultas'].append(idx)
-                                st.rerun()
+                df_visivel = df_c.drop(st.session_state['msgs_ocultas'], errors='ignore')
                 
-                # Lista para o seletor de resposta (apenas as que estão visíveis)
-                df_visivel = df_c.drop(st.session_state['msgs_ocultas'])
+                for _, msg in df_visivel.iterrows():
+                    classe = "msg-eu" if msg['remetente'] == st.session_state['user'] else "msg-outro"
+                    st.markdown(f"<div class='chat-msg {classe}'><b>{msg['remetente']}:</b><br>{msg['mensagem']}</div>", unsafe_allow_html=True)
+
                 lista_msgs = df_visivel['mensagem'].tolist()
             else:
                 lista_msgs = ["Nenhuma mensagem"]
+                st.info("O chat está limpo, abençoado!")
+
         except Exception as e:
-            st.error(f"Erro ao carregar chat: {e}")
+            st.error("Erro ao carregar o chat. Tente atualizar a página.")
             lista_msgs = ["Erro"]
 
-        # 2. CAMPO PARA RESPONDER
+        # 3. CAMPO PARA RESPONDER (Como antes)
         st.divider()
-        with st.form("form_chat_v3", clear_on_submit=True):
-            st.markdown("### 📝 Responder a uma conversa:")
-            # Mostra as mensagens em ordem inversa para facilitar a escolha da última
-            msg_referencia = st.selectbox("Selecione o assunto:", reversed(lista_msgs))
+        with st.form("form_chat_v4", clear_on_submit=True):
+            st.markdown("### 📝 Responder a:")
+            msg_referencia = st.selectbox("Sobre qual assunto?", reversed(lista_msgs))
+            nova_msg = st.text_area("Sua resposta:", placeholder="Escreva aqui...")
             
-            nova_msg = st.text_area("Sua resposta:", placeholder="Escreva para a Bia...")
-            
-            col1, col2 = st.columns([1,1])
+            col1, col2 = st.columns(2)
             with col1:
-                enviar = st.form_submit_button("🚀 Enviar Resposta")
+                if st.form_submit_button("🚀 Enviar"):
+                    if nova_msg:
+                        agora = obter_agora_br().strftime('%d/%m %H:%M')
+                        msg_f = f"📌 SOBRE: '{msg_referencia[:20]}...' \n{nova_msg}"
+                        aba_c.append_row([st.session_state['user'], msg_f, agora])
+                        st.rerun()
             with col2:
-                # Botão para resetar a visualização se precisar ver algo antigo
-                if st.form_submit_button("🔄 Ver Tudo"):
+                if st.form_submit_button("🔄 Ver Histórico"):
                     st.session_state['msgs_ocultas'] = []
                     st.rerun()
-
-            if enviar and nova_msg:
-                agora = obter_agora_br().strftime('%d/%m %H:%M')
-                # Formatamos a resposta citando o que foi selecionado
-                citacao = f"📌 SOBRE: '{msg_referencia[:25]}...'"
-                msg_final = f"{citacao}\n{nova_msg}"
-                aba_c.append_row([st.session_state['user'], msg_final, agora])
-                st.rerun()
