@@ -53,7 +53,7 @@ def fazer_upload_drive(arquivo_upload):
         id_da_pasta = "https://drive.google.com/drive/folders/1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-?usp=drive_link"
         drive_service = conectar_google("drive")
         # COLE O ID DA SUA PASTA ENTRE AS ASPAS ABAIXO:
-        id_da_pasta = "SEU_ID_AQUI" 
+        id_da_pasta = "https://drive.google.com/drive/folders/1G6_7pZD8b4r2bNGUE3p-WnZQ9KhfgNv-" 
         
         file_metadata = {
             'name': arquivo_upload.name,
