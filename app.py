@@ -157,24 +157,23 @@ else:
                 st.success("Glória a Deus! Tudo em dia por aqui.")
             else:
                 for _, r in df_hoje.iterrows():
-                    # Criamos um "card" visual para a tarefa
+                    # O container deve estar alinhado com o 'for'
                     with st.container():
                         col_txt, col_btn = st.columns([3, 1])
                         with col_txt:
                             st.markdown(f"""
                                 <div style='background-color:#4B0082; padding:15px; border-radius:10px; border-left:5px solid #FFFF00;'>
                                     <h4 style='margin:0;'>🕒 {r['hora_prazo']} - {r['titulo']}</h4>
-                                    <p style='margin:5px 0 0 0; font-size:0.9em;'>{r['descricao'][:50]}...</p>
                                 </div>
                             """, unsafe_allow_html=True)
                         with col_btn:
-                            # O botão que leva para a execução
-                 if st.button(f"🚀 Executar", key=f"exec_{r['id']}"):
-                   st.session_state['page'] = 'list'
-                    st.session_state['tarefa_foco'] = str(r['id']) # Guardamos o ID da missão
-                    st.rerun()
+                            # ESTA LINHA ABAIXO PRECISA ESTAR EXATAMENTE ABAIXO DO 'with col_btn'
+                            if st.button(f"🚀 Executar", key=f"exec_{r['id']}"):
+                                st.session_state['page'] = 'list'
+                                st.session_state['tarefa_foco'] = str(r['id'])
+                                st.rerun()
         else:
-            st.info("Nenhuma missão registrada no sistema ainda.")
+            st.info("Nenhuma missão registrada.")
 
     # --- PÁGINA: AGENDAR ---
     elif st.session_state['page'] == 'add':
