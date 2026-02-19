@@ -45,21 +45,19 @@ st.markdown("""
 
 def fazer_upload_cloudinary(arquivo):
     try:
-        # 1. Faz o upload normal
+        # 1. Upload simples e direto
         resultado = cloudinary.uploader.upload(
             arquivo, 
             resource_type="auto"
         )
         
+        # 2. Pegamos a URL segura
         link = resultado.get('secure_url')
         
-        # 2. O SEGREDO PARA PDF ABRIR NO NAVEGADOR:
-        # Se for PDF, garantimos que ele use a rota de 'image' (que permite visualização)
-        # mas sem corromper o arquivo.
+        # 3. Pequeno ajuste manual para garantir que o navegador abra na tela
+        # Removemos qualquer instrução de 'download' forçado
         if ".pdf" in arquivo.name.lower():
-            # Forçamos a rota de visualização do Cloudinary
             link = link.replace("/raw/upload/", "/image/upload/")
-            # Adicionamos a extensão .pdf no final se não tiver
             if not link.endswith(".pdf"):
                 link = link + ".pdf"
             
