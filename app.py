@@ -15,7 +15,6 @@ cloudinary.config(
   api_key = st.secrets["CLOUDINARY_API_KEY"],
   api_secret = st.secrets["CLOUDINARY_API_SECRET"]
 )
-)
 
 # --- CONFIGURAÇÃO DE FUSO HORÁRIO ---
 fuso_br = pytz.timezone('America/Sao_Paulo')
