@@ -142,7 +142,6 @@ else:
     df_geral = carregar_tarefas()
 
     # --- PÁGINA: HOME ---
-    # --- PÁGINA: HOME ---
     if st.session_state['page'] == 'home':
         st.title(f"☀️ Olá, {st.session_state['user']}!")
         hoje_str = obter_agora_br().strftime('%Y-%m-%d')
@@ -199,7 +198,6 @@ else:
                     st.success("Salvo!"); t_time.sleep(1); st.rerun()
 
     # --- PÁGINA: MISSÕES ---
-    # --- PÁGINA: MISSÕES ---
     elif st.session_state['page'] == 'list':
         st.title("📋 Missões")
         
@@ -249,14 +247,38 @@ else:
 
     # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
-        st.title("💬 Chat")
+        st.title("💬 Chat do Grupo")
         aba_c = conectar_google("Chat")
-        df_c = pd.DataFrame(aba_c.get_all_records())
-        # ... (restante da lógica do chat igual v24)
-        for idx, msg in df_c.tail(10).iterrows():
-            st.markdown(f"<div class='chat-msg msg-eu'>{msg['remetente']}: {msg['mensagem']}</div>", unsafe_allow_html=True)
+        
+        # 1. BOTÃO PARA LIMPAR (Somente Willian vê)
+        if st.session_state['role'] == 'Administrador':
+            if st.button("🗑️ Limpar Conversa (Zerar Planilha)"):
+                # Mantém apenas o cabeçalho da planilha
+                aba_c.resize(rows=1)
+                aba_c.resize(rows=100)
+                st.success("Conversa eliminada!")
+                t_time.sleep(1)
+                st.rerun()
 
-    # --- PÁGINA: RELATÓRIO ---
-    elif st.session_state['page'] == 'report':
-        st.title("📊 Relatório")
-        st.dataframe(df_geral[df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False)])
+        # 2. EXIBIÇÃO DAS MENSAGENS
+        try:
+            df_c = pd.DataFrame(aba_c.get_all_records())
+            if not df_c.empty:
+                for idx, msg in df_c.tail(20).iterrows():
+                    # Define a cor baseada em quem enviou
+                    classe = "msg-eu" if msg['remetente'] == st.session_state['user'] else "msg-outro"
+                    st.markdown(f"<div class='chat-msg {classe}'><b>{msg['remetente']}:</b><br>{msg['mensagem']}</div>", unsafe_allow_html=True)
+            else:
+                st.info("Nenhuma mensagem por aqui. Comece a conversa!")
+        except:
+            st.warning("Inicie o chat enviando a primeira mensagem.")
+
+        # 3. CAMPO PARA RESPONDER
+        st.divider()
+        with st.form("form_chat", clear_on_submit=True):
+            nova_msg = st.text_area("Sua mensagem para a Bia:", placeholder="Digite aqui...")
+            if st.form_submit_button("Enviar Resposta"):
+                if nova_msg:
+                    agora = obter_agora_br().strftime('%d/%m %H:%M')
+                    aba_c.append_row([st.session_state['user'], nova_msg, agora])
+                    st.rerun()
