@@ -245,7 +245,7 @@ else:
                         if st.button("⏳ Confirmar", key=f"ba_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
-  # --- PÁGINA: CHAT ---
+ # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         
@@ -258,58 +258,63 @@ else:
                 st.session_state['msgs_ocultas'] = []
 
             if not df_c.empty:
-                # 1. FILTRO DE LIMPEZA EM MASSA
-                with st.expander("🧹 Arquivar Conversas Resolvidas"):
+                # 1. ARQUIVAMENTO EM MASSA
+                with st.expander("🧹 Limpar Conversas da Tela"):
                     opcoes = [f"{idx} - {m['mensagem'][:40]}..." for idx, m in df_c.iterrows() if idx not in st.session_state['msgs_ocultas']]
-                    selecionadas = st.multiselect("Selecione para ocultar da tela:", opcoes)
-                    if st.button("Confirmar Arquivamento"):
+                    selecionadas = st.multiselect("Selecione o que já foi resolvido:", opcoes)
+                    if st.button("Confirmar Limpeza"):
                         for s in selecionadas:
-                            idx_limpar = int(s.split(" - ")[0])
-                            st.session_state['msgs_ocultas'].append(idx_limpar)
+                            st.session_state['msgs_ocultas'].append(int(s.split(" - ")[0]))
                         st.rerun()
 
-                # 2. EXIBIÇÃO DAS MENSAGENS (VERDE PARA VOCÊ)
+                # 2. EXIBIÇÃO DAS MENSAGENS
                 df_visivel = df_c.drop(st.session_state['msgs_ocultas'], errors='ignore')
+                
                 for _, msg in df_visivel.iterrows():
-                    # Definindo cores e lado do balão
-                    if msg['remetente'] == st.session_state['user']:
-                        bg_color = "#2E8B57" # Verde
-                        align = "margin-left: auto; border-right: 5px solid #FFFF00;"
+                    # IDENTIFICAÇÃO DO USUÁRIO (Ajuste o nome se necessário)
+                    is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
+                    
+                    if is_me:
+                        bg_color = "#2E8B57" # VERDE para o Willian
+                        border = "border-right: 5px solid #FFFF00;"
+                        align = "margin-left: auto;"
                     else:
-                        bg_color = "#4B0082" # Roxo
-                        align = "margin-right: auto; border-left: 5px solid #00FFFF;"
+                        bg_color = "#4B0082" # ROXO para a Bia
+                        border = "border-left: 5px solid #00FFFF;"
+                        align = "margin-right: auto;"
 
                     st.markdown(f"""
-                        <div style='background-color: {bg_color}; color: white; padding: 12px; border-radius: 15px; 
-                        margin-bottom: 10px; width: 85%; {align} shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
-                        <b style='color: #FFD700;'>{msg['remetente']}:</b><br>{msg['mensagem']}
-                        </div>""", unsafe_allow_html=True)
+                        <div style='background-color: {bg_color}; color: white; padding: 15px; border-radius: 15px; 
+                        margin-bottom: 12px; width: 85%; {align} {border} box-shadow: 2px 2px 5px rgba(0,0,0,0.2);'>
+                            <b style='color: #FFD700;'>{msg['remetente']}:</b><br>
+                            {msg['mensagem']}
+                        </div>
+                    """, unsafe_allow_html=True)
 
                 lista_msgs = df_visivel['mensagem'].tolist()
             else:
                 lista_msgs = ["Nenhuma mensagem"]
-
         except Exception as e:
             st.error(f"Erro de conexão: {e}")
             lista_msgs = ["Erro"]
 
-        # --- AQUI ESTAVA O ERRO! O st.divider() tem que estar alinhado com o 'try' ---
         st.divider()
         
-        with st.form("form_chat_v4", clear_on_submit=True):
+        # 3. FORMULÁRIO DE RESPOSTA
+        with st.form("form_chat_v5", clear_on_submit=True):
             st.markdown("### 📝 Responder a:")
             msg_ref = st.selectbox("Selecione o assunto:", reversed(lista_msgs))
-            nova_msg = st.text_area("Sua resposta:", placeholder="Escreva aqui...")
+            nova_msg = st.text_area("Sua mensagem:", placeholder="Escreva aqui...")
             
             c1, c2 = st.columns(2)
             with c1:
-                if st.form_submit_button("🚀 Enviar"):
+                if st.form_submit_button("🚀 Enviar Resposta"):
                     if nova_msg:
                         agora = obter_agora_br().strftime('%d/%m %H:%M')
-                        msg_f = f"📌 SOBRE: '{msg_ref[:20]}...' \n{nova_msg}"
+                        msg_f = f"📌 SOBRE: '{msg_ref[:25]}...' \n\n {nova_msg}"
                         aba_c.append_row([st.session_state['user'], msg_f, agora])
                         st.rerun()
             with c2:
-                if st.form_submit_button("🔄 Ver Histórico"):
+                if st.form_submit_button("🔄 Ver Histórico Completo"):
                     st.session_state['msgs_ocultas'] = []
                     st.rerun()
