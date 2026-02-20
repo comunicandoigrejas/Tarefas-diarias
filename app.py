@@ -249,17 +249,10 @@ else:
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         
-        # 1. INJETAR CSS (Isso limpa o visual e evita o erro do quadradinho preto)
+        # Estilos dos balões (Verde e Roxo)
         st.markdown("""
             <style>
-            .chat-bubble {
-                padding: 15px;
-                border-radius: 15px;
-                margin-bottom: 10px;
-                width: 85%;
-                color: white;
-                font-family: sans-serif;
-            }
+            .chat-bubble { padding: 12px; border-radius: 15px; margin-bottom: 8px; width: 85%; color: white; }
             .me { background-color: #2E8B57; margin-left: auto; border-right: 5px solid #FFFF00; }
             .others { background-color: #4B0082; margin-right: auto; border-left: 5px solid #00FFFF; }
             </style>
@@ -267,60 +260,52 @@ else:
 
         try:
             aba_c = conectar_google("Chat")
-            dados_chat = aba_c.get_all_records()
-            df_c = pd.DataFrame(dados_chat)
+            df_c = pd.DataFrame(aba_c.get_all_records())
             
-            if 'msgs_ocultas' not in st.session_state:
-                st.session_state['msgs_ocultas'] = []
+            if 'ultimo_id_visto' not in st.session_state:
+                st.session_state['ultimo_id_visto'] = 0
 
             if not df_c.empty:
-                # ARQUIVAMENTO
-                with st.expander("🧹 Limpar Conversas da Tela"):
-                    opcoes = [f"{idx} - {m['mensagem'][:40]}..." for idx, m in df_c.iterrows() if idx not in st.session_state['msgs_ocultas']]
-                    selecionadas = st.multiselect("Selecione para ocultar:", opcoes)
-                    if st.button("Confirmar Arquivamento"):
-                        for s in selecionadas:
-                            st.session_state['msgs_ocultas'].append(int(s.split(" - ")[0]))
-                        st.rerun()
+                # FILTRAGEM: Mostra apenas o que não foi arquivado
+                df_exibir = df_c.iloc[st.session_state['ultimo_id_visto']:]
 
-                # 2. EXIBIÇÃO DAS MENSAGENS
-                df_visivel = df_c.drop(st.session_state['msgs_ocultas'], errors='ignore')
-                
-                for _, msg in df_visivel.iterrows():
-                    # Compara o nome do remetente para definir a cor
-                    is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
-                    classe = "me" if is_me else "others"
-                    
-                    # HTML SUPER SIMPLIFICADO
-                    st.markdown(f"""<div class="chat-bubble {classe}">
-                        <b style="color:#FFD700;">{msg['remetente']}:</b><br>
-                        {msg['mensagem']}
-                    </div>""", unsafe_allow_html=True)
+                if df_exibir.empty:
+                    st.info("🙏 Glória a Deus! Tudo resolvido por aqui.")
+                else:
+                    for _, msg in df_exibir.iterrows():
+                        is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
+                        classe = "me" if is_me else "others"
+                        st.markdown(f'<div class="chat-bubble {classe}"><b style="color:#FFD700;">{msg["remetente"]}:</b><br>{msg["mensagem"]}</div>', unsafe_allow_html=True)
 
-                lista_msgs = df_visivel['mensagem'].tolist()
+                lista_msgs = df_exibir['mensagem'].tolist() if not df_exibir.empty else ["Nenhuma"]
             else:
-                lista_msgs = ["Sem mensagens"]
+                lista_msgs = ["Nenhuma"]
+
         except Exception as e:
             st.error(f"Erro: {e}")
             lista_msgs = ["Erro"]
 
         st.divider()
         
-        # 3. FORMULÁRIO DE RESPOSTA
-        with st.form("form_chat_vFinal_Real", clear_on_submit=True):
-            st.markdown("### 📝 Responder a:")
-            msg_ref = st.selectbox("Selecione o assunto:", reversed(lista_msgs))
-            nova_msg = st.text_area("Sua mensagem:", placeholder="Escreva aqui...")
+        # FORMULÁRIO COM AUTO-ARQUIVAMENTO
+        with st.form("form_chat_auto", clear_on_submit=True):
+            st.markdown("### 📝 Responder e Arquivar:")
+            msg_ref = st.selectbox("Selecione o assunto para finalizar:", reversed(lista_msgs))
+            nova_msg = st.text_area("Sua resposta:", placeholder="Ao enviar, esta conversa será arquivada da tela...")
             
             c1, c2 = st.columns(2)
             with c1:
-                if st.form_submit_button("🚀 Enviar Resposta"):
-                    if nova_msg:
+                if st.form_submit_button("🚀 Responder e Dar Baixa"):
+                    if nova_msg and not df_c.empty:
                         agora = obter_agora_br().strftime('%d/%m %H:%M')
-                        msg_f = f"📌 SOBRE: '{msg_ref[:25]}...' \n\n {nova_msg}"
+                        msg_f = f"📌 CONCLUSÃO: '{msg_ref[:20]}...' \n\n {nova_msg}"
                         aba_c.append_row([st.session_state['user'], msg_f, agora])
+                        
+                        # A MÁGICA: O marcador pula para a nova linha que acabamos de criar + as anteriores
+                        st.session_state['ultimo_id_visto'] = len(df_c) + 1
+                        st.success("Mensagem enviada e conversas arquivadas!")
                         st.rerun()
             with c2:
-                if st.form_submit_button("🔄 Ver Tudo"):
-                    st.session_state['msgs_ocultas'] = []
+                if st.form_submit_button("🔄 Ver Histórico"):
+                    st.session_state['ultimo_id_visto'] = 0
                     st.rerun()
