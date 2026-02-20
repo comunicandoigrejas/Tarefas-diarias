@@ -249,70 +249,70 @@ else:
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         
-        # CSS para os balões (Verde para Willian, Roxo para Bia)
+        # Estilo dos balões (Melhorado para evitar o erro visual do </div>)
         st.markdown("""
             <style>
-            .chat-bubble { padding: 12px; border-radius: 15px; margin-bottom: 8px; width: 85%; color: white; }
-            .me { background-color: #2E8B57; margin-left: auto; border-right: 5px solid #FFFF00; }
-            .others { background-color: #4B0082; margin-right: auto; border-left: 5px solid #00FFFF; }
+            .chat-bubble { padding: 12px; border-radius: 15px; margin-bottom: 8px; width: 85%; color: white; line-height: 1.4; }
+            .me { background-color: #2E8B57; margin-left: auto; border-right: 5px solid #FFFF00; text-align: right; }
+            .others { background-color: #4B0082; margin-right: auto; border-left: 5px solid #00FFFF; text-align: left; }
             </style>
         """, unsafe_allow_html=True)
 
         try:
             aba_c = conectar_google("Chat")
-            # Carrega todos os dados
             dados_chat = aba_c.get_all_records()
             df_full = pd.DataFrame(dados_chat)
             
             if not df_full.empty:
-                # MÁGICA AQUI: Filtra apenas o que NÃO está 'Baixado'
-                # Convertemos para string e limpamos espaços para não ter erro
-                df_exibir = df_full[df_full['status'].astype(str).str.contains('Ativo', case=False, na=False)]
+                # FILTRO BLINDADO: Remove espaços e garante que só apareça o 'Ativo'
+                df_full['status_limpo'] = df_full['status'].astype(str).str.strip()
+                df_exibir = df_full[df_full['status_limpo'] == 'Ativo'].copy()
 
                 if df_exibir.empty:
-                    st.info("🙏 Glória a Deus! Todas as conversas estão com status 'Baixado'.")
+                    st.info("🙏 Glória a Deus! Todas as conversas foram baixadas.")
                 else:
                     for idx, msg in df_exibir.iterrows():
+                        # Identifica se é Willian (Verde) ou Bia (Roxo)
                         is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
                         classe = "me" if is_me else "others"
                         
-                        st.markdown(f"""<div class="chat-bubble {classe}">
-                            <b style="color:#FFD700;">{msg['remetente']}:</b><br>
-                            {msg['mensagem']}
-                        </div>""", unsafe_allow_html=True)
+                        st.markdown(f'<div class="chat-bubble {classe}"><b style="color:#FFD700;">{msg["remetente"]}:</b><br>{msg["mensagem"]}</div>', unsafe_allow_html=True)
 
                 lista_msgs = df_exibir['mensagem'].tolist() if not df_exibir.empty else ["Nenhuma"]
             else:
                 lista_msgs = ["Nenhuma"]
 
         except Exception as e:
-            st.error(f"Erro ao acessar planilha: {e}")
+            st.error(f"Erro na leitura: {e}")
             st.stop()
 
         st.divider()
         
-        # 2. FORMULÁRIO DE RESPOSTA (DÁ BAIXA AUTOMÁTICA)
-        with st.form("form_chat_status", clear_on_submit=True):
-            st.markdown("### 📝 Responder e Finalizar Assunto:")
+        # 2. FORMULÁRIO DE RESPOSTA E BAIXA
+        with st.form("form_chat_v38", clear_on_submit=True):
+            st.markdown("### 📝 Responder e Arquivar:")
             msg_ref = st.selectbox("Selecione qual mensagem deseja dar baixa:", reversed(lista_msgs))
-            nova_msg = st.text_area("Sua resposta:", placeholder="Ao enviar, o status na planilha mudará para 'Baixado'...")
+            nova_msg = st.text_area("Sua resposta:", placeholder="Escreva aqui...")
             
-            if st.form_submit_button("🚀 Enviar e Arquivar"):
+            if st.form_submit_button("🚀 Enviar e Dar Baixa"):
                 if nova_msg and msg_ref != "Nenhuma":
                     agora = obter_agora_br().strftime('%d/%m %H:%M')
                     
-                    # 1. Encontra a linha da mensagem que você selecionou para dar baixa
-                    # Adicionamos +2 porque o DataFrame começa em 0 e a Planilha tem cabeçalho
+                    # Localiza a linha correta para dar baixa
+                    # Usamos o índice exato do DataFrame para não ter erro de busca
                     try:
-                        linha_original = df_full[df_full['mensagem'] == msg_ref].index[0] + 2
-                        # 2. Muda o status para 'Baixado' na coluna E (coluna 5)
-                        aba_c.update_cell(linha_original, 5, "Baixado")
+                        idx_linha = df_full[df_full['mensagem'] == msg_ref].index[0]
+                        linha_planilha = idx_linha + 2 # +1 do cabeçalho, +1 porque o index começa em 0
                         
-                        # 3. Envia a sua nova resposta como 'Ativo'
-                        msg_f = f"📌 SOBRE: '{msg_ref[:20]}...' \n\n {nova_msg}"
-                        aba_c.append_row([agora, st.session_state['user'], "Todos", msg_f, "Ativo"])
+                        # Atualiza para Baixado
+                        aba_c.update_cell(linha_planilha, 5, "Baixado")
                         
-                        st.success("Status atualizado para Baixado!")
+                        # Envia a sua nova resposta como Ativo
+                        # Formato: data_hora, remetente, destinatario, mensagem, status
+                        corpo_msg = f"📌 SOBRE: '{msg_ref[:20]}...' \n\n {nova_msg}"
+                        aba_c.append_row([agora, st.session_state['user'], "Todos", corpo_msg, "Ativo"])
+                        
+                        st.success("Conversa baixada e resposta enviada!")
                         st.rerun()
-                    except:
-                        st.error("Não consegui localizar a mensagem na planilha para dar baixa.")
+                    except Exception as e:
+                        st.error(f"Erro ao dar baixa: {e}")
