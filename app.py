@@ -249,6 +249,22 @@ else:
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         
+        # 1. INJETAR CSS (Isso limpa o visual e evita o erro do quadradinho preto)
+        st.markdown("""
+            <style>
+            .chat-bubble {
+                padding: 15px;
+                border-radius: 15px;
+                margin-bottom: 10px;
+                width: 85%;
+                color: white;
+                font-family: sans-serif;
+            }
+            .me { background-color: #2E8B57; margin-left: auto; border-right: 5px solid #FFFF00; }
+            .others { background-color: #4B0082; margin-right: auto; border-left: 5px solid #00FFFF; }
+            </style>
+        """, unsafe_allow_html=True)
+
         try:
             aba_c = conectar_google("Chat")
             dados_chat = aba_c.get_all_records()
@@ -258,7 +274,7 @@ else:
                 st.session_state['msgs_ocultas'] = []
 
             if not df_c.empty:
-                # 1. ARQUIVAMENTO
+                # ARQUIVAMENTO
                 with st.expander("🧹 Limpar Conversas da Tela"):
                     opcoes = [f"{idx} - {m['mensagem'][:40]}..." for idx, m in df_c.iterrows() if idx not in st.session_state['msgs_ocultas']]
                     selecionadas = st.multiselect("Selecione para ocultar:", opcoes)
@@ -271,28 +287,15 @@ else:
                 df_visivel = df_c.drop(st.session_state['msgs_ocultas'], errors='ignore')
                 
                 for _, msg in df_visivel.iterrows():
-                    # Lógica para identificar você (Willian)
-                    # Comparamos ignorando espaços e maiúsculas
-                    sou_eu = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
+                    # Compara o nome do remetente para definir a cor
+                    is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
+                    classe = "me" if is_me else "others"
                     
-                    if sou_eu:
-                        cor_fundo = "#2E8B57" # VERDE
-                        borda = "border-right: 5px solid #FFFF00;"
-                        alinhar = "margin-left: auto;"
-                    else:
-                        cor_fundo = "#4B0082" # ROXO
-                        borda = "border-left: 5px solid #00FFFF;"
-                        alinhar = "margin-right: auto;"
-
-                    # HTML SIMPLIFICADO para evitar o erro do quadradinho preto
-                    html_chat = f"""
-                    <div style="background-color:{cor_fundo}; color:white; padding:15px; border-radius:15px; 
-                                margin-bottom:10px; width:85%; {alinhar} {borda}">
+                    # HTML SUPER SIMPLIFICADO
+                    st.markdown(f"""<div class="chat-bubble {classe}">
                         <b style="color:#FFD700;">{msg['remetente']}:</b><br>
                         {msg['mensagem']}
-                    </div>
-                    """
-                    st.markdown(html_chat, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
 
                 lista_msgs = df_visivel['mensagem'].tolist()
             else:
@@ -303,21 +306,21 @@ else:
 
         st.divider()
         
-        # 3. RESPOSTA
-        with st.form("form_chat_vFinal", clear_on_submit=True):
+        # 3. FORMULÁRIO DE RESPOSTA
+        with st.form("form_chat_vFinal_Real", clear_on_submit=True):
             st.markdown("### 📝 Responder a:")
             msg_ref = st.selectbox("Selecione o assunto:", reversed(lista_msgs))
             nova_msg = st.text_area("Sua mensagem:", placeholder="Escreva aqui...")
             
             c1, c2 = st.columns(2)
             with c1:
-                if st.form_submit_button("🚀 Enviar"):
+                if st.form_submit_button("🚀 Enviar Resposta"):
                     if nova_msg:
                         agora = obter_agora_br().strftime('%d/%m %H:%M')
                         msg_f = f"📌 SOBRE: '{msg_ref[:25]}...' \n\n {nova_msg}"
                         aba_c.append_row([st.session_state['user'], msg_f, agora])
                         st.rerun()
             with c2:
-                if st.form_submit_button("🔄 Ver Histórico"):
+                if st.form_submit_button("🔄 Ver Tudo"):
                     st.session_state['msgs_ocultas'] = []
                     st.rerun()
