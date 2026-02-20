@@ -249,7 +249,7 @@ else:
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         
-        # CSS para os balões
+        # CSS para os balões (Verde para Willian, Roxo para Bia)
         st.markdown("""
             <style>
             .chat-bubble { padding: 12px; border-radius: 15px; margin-bottom: 8px; width: 85%; color: white; }
@@ -259,24 +259,20 @@ else:
         """, unsafe_allow_html=True)
 
         try:
-            # Conexão segura apenas com a aba Chat
             aba_c = conectar_google("Chat")
+            # Carrega todos os dados
             dados_chat = aba_c.get_all_records()
-            df_c = pd.DataFrame(dados_chat)
+            df_full = pd.DataFrame(dados_chat)
             
-            # Inicializa o marcador de visualização se não existir
-            if 'index_visto' not in st.session_state:
-                st.session_state['index_visto'] = 0
-
-            if not df_c.empty:
-                # 1. EXIBIÇÃO FILTRADA
-                df_exibir = df_c.iloc[st.session_state['index_visto']:]
+            if not df_full.empty:
+                # MÁGICA AQUI: Filtra apenas o que NÃO está 'Baixado'
+                # Convertemos para string e limpamos espaços para não ter erro
+                df_exibir = df_full[df_full['status'].astype(str).str.contains('Ativo', case=False, na=False)]
 
                 if df_exibir.empty:
-                    st.info("🙏 Glória a Deus! Todas as conversas foram tratadas.")
+                    st.info("🙏 Glória a Deus! Todas as conversas estão com status 'Baixado'.")
                 else:
                     for idx, msg in df_exibir.iterrows():
-                        # Compara o nome para saber se é você (Willian) ou a Bia
                         is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
                         classe = "me" if is_me else "others"
                         
@@ -290,33 +286,33 @@ else:
                 lista_msgs = ["Nenhuma"]
 
         except Exception as e:
-            st.error("⚠️ Erro ao acessar a planilha. Verifique se a aba 'Chat' existe.")
+            st.error(f"Erro ao acessar planilha: {e}")
             st.stop()
 
         st.divider()
         
-        # 2. FORMULÁRIO DE RESPOSTA E ARQUIVAMENTO INSTANTÂNEO
-        with st.form("form_chat_final", clear_on_submit=True):
-            st.markdown("### 📝 Responder e Dar Baixa:")
-            msg_ref = st.selectbox("Selecione o assunto para finalizar:", reversed(lista_msgs))
-            nova_msg = st.text_area("Sua resposta:", placeholder="Ao enviar, o chat limpa a tela...")
+        # 2. FORMULÁRIO DE RESPOSTA (DÁ BAIXA AUTOMÁTICA)
+        with st.form("form_chat_status", clear_on_submit=True):
+            st.markdown("### 📝 Responder e Finalizar Assunto:")
+            msg_ref = st.selectbox("Selecione qual mensagem deseja dar baixa:", reversed(lista_msgs))
+            nova_msg = st.text_area("Sua resposta:", placeholder="Ao enviar, o status na planilha mudará para 'Baixado'...")
             
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.form_submit_button("🚀 Responder e Arquivar"):
-                    if nova_msg and not df_c.empty:
-                        agora = obter_agora_br().strftime('%d/%m %H:%M')
-                        msg_f = f"📌 CONCLUSÃO: '{msg_ref[:20]}...' \n\n {nova_msg}"
+            if st.form_submit_button("🚀 Enviar e Arquivar"):
+                if nova_msg and msg_ref != "Nenhuma":
+                    agora = obter_agora_br().strftime('%d/%m %H:%M')
+                    
+                    # 1. Encontra a linha da mensagem que você selecionou para dar baixa
+                    # Adicionamos +2 porque o DataFrame começa em 0 e a Planilha tem cabeçalho
+                    try:
+                        linha_original = df_full[df_full['mensagem'] == msg_ref].index[0] + 2
+                        # 2. Muda o status para 'Baixado' na coluna E (coluna 5)
+                        aba_c.update_cell(linha_original, 5, "Baixado")
                         
-                        # Envia para o Google Sheets
-                        aba_c.append_row([st.session_state['user'], msg_f, agora])
+                        # 3. Envia a sua nova resposta como 'Ativo'
+                        msg_f = f"📌 SOBRE: '{msg_ref[:20]}...' \n\n {nova_msg}"
+                        aba_c.append_row([agora, st.session_state['user'], "Todos", msg_f, "Ativo"])
                         
-                        # Atualiza o índice para esconder as mensagens antigas + a nova
-                        st.session_state['index_visto'] = len(df_c) + 1
-                        st.success("Enviado com sucesso!")
+                        st.success("Status atualizado para Baixado!")
                         st.rerun()
-            with c2:
-                # Botão para recuperar o que foi escondido
-                if st.form_submit_button("🔄 Ver Histórico"):
-                    st.session_state['index_visto'] = 0
-                    st.rerun()
+                    except:
+                        st.error("Não consegui localizar a mensagem na planilha para dar baixa.")
