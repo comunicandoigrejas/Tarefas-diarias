@@ -245,31 +245,52 @@ else:
                         if st.button("⏳ Confirmar", key=f"ba_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
- # --- PÁGINA: RELATÓRIO ---
+# --- PÁGINA: RELATÓRIO DE MISSÕES CONCLUÍDAS (v45.0) ---
     elif st.session_state['page'] == 'relatorio':
-        st.title("📊 Relatório de Atividades Finalizadas")
-        
+        st.title("📊 Memorial de Missões Concluídas")
+        st.markdown(f"A paz do Senhor, **{st.session_state['user']}**! Aqui estão os registros finalizados pelo sistema.")
+
         try:
-            # CONECTA NA PÁGINA1 (Sua aba de tarefas)
+            # 1. CONEXÃO COM A PÁGINA1 (Onde o App salva as conclusões)
             aba_p1 = conectar_google("Página1")
-            df_p1 = pd.DataFrame(aba_p1.get_all_records())
-            
+            dados_p1 = aba_p1.get_all_records()
+            df_p1 = pd.DataFrame(dados_p1)
+
             if not df_p1.empty:
-                # Filtra tudo que contém "Concluído" na coluna 'status' (Coluna G)
-                df_finalizadas = df_p1[df_p1['status'].astype(str).str.contains('Concluído', case=False, na=False)]
-                
-                st.metric("Total de Missões Concluídas", len(df_finalizadas))
-                
-                st.subheader("📜 Histórico da Página1")
-                st.dataframe(df_finalizadas, use_container_width=True)
-                
-                # Gráfico de quem mais trabalhou
-                st.subheader("📈 Produtividade")
-                st.bar_chart(df_finalizadas['responsavel'].value_counts())
+                # 2. FILTRAGEM PELO PADRÃO QUE O APP ESCREVE
+                # O App escreve '--- CONCLUÍDO em ...', então buscamos apenas por 'CONCLUÍDO'
+                # Usamos 'na=False' para não dar erro em células vazias
+                df_finalizados = df_p1[df_p1['status'].astype(str).str.contains('CONCLUÍDO', case=False, na=False)].copy()
+
+                if not df_finalizados.empty:
+                    # 3. MÉTRICAS DE VITÓRIA
+                    total_vitorias = len(df_finalizados)
+                    st.success(f"🙏 Glória a Deus! O sistema identificou {total_vitorias} missões finalizadas.")
+                    
+                    st.divider()
+
+                    # 4. EXIBIÇÃO DA TABELA (Formatada para o Comunicando Igrejas)
+                    st.subheader("📜 Histórico Detalhado")
+                    st.dataframe(
+                        df_finalizados, 
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    # 5. GRÁFICO DE PRODUTIVIDADE (Azul e Verde)
+                    if 'responsavel' in df_finalizados.columns:
+                        st.subheader("📈 Produtividade do Grupo")
+                        contagem = df_finalizados['responsavel'].value_counts()
+                        # Usando tons de Azul e Verde como solicitado
+                        st.bar_chart(contagem, color="#2E8B57") 
+
+                else:
+                    st.warning("Varão, o sistema ainda não encontrou nenhuma linha com o selo 'CONCLUÍDO' na Página1.")
             else:
-                st.warning("A Página1 está vazia ou sem cabeçalhos.")
+                st.info("A planilha Página1 está sem dados registrados.")
+
         except Exception as e:
-            st.error(f"Erro ao ler Página1: {e}")
+            st.error(f"Erro ao processar o memorial: {e}")
   
   # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
