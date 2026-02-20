@@ -249,7 +249,7 @@ else:
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         
-        # Estilos dos balões (Verde e Roxo)
+        # CSS para os balões
         st.markdown("""
             <style>
             .chat-bubble { padding: 12px; border-radius: 15px; margin-bottom: 8px; width: 85%; color: white; }
@@ -259,68 +259,64 @@ else:
         """, unsafe_allow_html=True)
 
         try:
+            # Conexão segura apenas com a aba Chat
             aba_c = conectar_google("Chat")
-            # Conectamos a uma nova aba chamada 'Config' para salvar o progresso
-            try:
-                aba_config = conectar_google("Config")
-            except:
-                st.error("Varão, crie uma aba chamada 'Config' na sua planilha com as colunas 'usuario' e 'ultimo_id'.")
-                st.stop()
-
-            df_c = pd.DataFrame(aba_c.get_all_records())
-            df_conf = pd.DataFrame(aba_config.get_all_records())
-
-            # 1. RECUPERAR ONDE O WILLIAN PAROU (MARCO PERMANENTE)
-            user_atual = st.session_state['user']
-            conf_user = df_conf[df_conf['usuario'] == user_atual]
+            dados_chat = aba_c.get_all_records()
+            df_c = pd.DataFrame(dados_chat)
             
-            if not conf_user.empty:
-                marco_leitura = int(conf_user.iloc[0]['ultimo_id'])
+            # Inicializa o marcador de visualização se não existir
+            if 'index_visto' not in st.session_state:
+                st.session_state['index_visto'] = 0
+
+            if not df_c.empty:
+                # 1. EXIBIÇÃO FILTRADA
+                df_exibir = df_c.iloc[st.session_state['index_visto']:]
+
+                if df_exibir.empty:
+                    st.info("🙏 Glória a Deus! Todas as conversas foram tratadas.")
+                else:
+                    for idx, msg in df_exibir.iterrows():
+                        # Compara o nome para saber se é você (Willian) ou a Bia
+                        is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
+                        classe = "me" if is_me else "others"
+                        
+                        st.markdown(f"""<div class="chat-bubble {classe}">
+                            <b style="color:#FFD700;">{msg['remetente']}:</b><br>
+                            {msg['mensagem']}
+                        </div>""", unsafe_allow_html=True)
+
+                lista_msgs = df_exibir['mensagem'].tolist() if not df_exibir.empty else ["Nenhuma"]
             else:
-                marco_leitura = 0
-                # Cria o registro se não existir
-                aba_config.append_row([user_atual, 0])
-
-            # 2. EXIBIÇÃO FILTRADA
-            df_exibir = df_c.iloc[marco_leitura:]
-
-            if df_exibir.empty:
-                st.info("🙏 Tudo resolvido! Nenhuma conversa nova.")
-            else:
-                for _, msg in df_exibir.iterrows():
-                    is_me = str(msg['remetente']).strip().lower() == user_atual.strip().lower()
-                    classe = "me" if is_me else "others"
-                    st.markdown(f'<div class="chat-bubble {classe}"><b style="color:#FFD700;">{msg["remetente"]}:</b><br>{msg["mensagem"]}</div>', unsafe_allow_html=True)
-
-            lista_msgs = df_exibir['mensagem'].tolist() if not df_exibir.empty else ["Nenhuma"]
+                lista_msgs = ["Nenhuma"]
 
         except Exception as e:
-            st.error(f"Erro de conexão: {e}")
-            lista_msgs = ["Erro"]
+            st.error("⚠️ Erro ao acessar a planilha. Verifique se a aba 'Chat' existe.")
+            st.stop()
 
         st.divider()
         
-        # 3. FORMULÁRIO COM BAIXA DEFINITIVA
-        with st.form("form_chat_permanente", clear_on_submit=True):
-            st.markdown("### 📝 Responder e Arquivar para Sempre:")
-            msg_ref = st.selectbox("Selecione o assunto:", reversed(lista_msgs))
-            nova_msg = st.text_area("Sua resposta:", placeholder="Ao enviar, o chat limpa definitivamente...")
+        # 2. FORMULÁRIO DE RESPOSTA E ARQUIVAMENTO INSTANTÂNEO
+        with st.form("form_chat_final", clear_on_submit=True):
+            st.markdown("### 📝 Responder e Dar Baixa:")
+            msg_ref = st.selectbox("Selecione o assunto para finalizar:", reversed(lista_msgs))
+            nova_msg = st.text_area("Sua resposta:", placeholder="Ao enviar, o chat limpa a tela...")
             
-            if st.form_submit_button("🚀 Responder e Finalizar"):
-                if nova_msg and not df_c.empty:
-                    agora = obter_agora_br().strftime('%d/%m %H:%M')
-                    msg_f = f"📌 CONCLUSÃO: '{msg_ref[:20]}...' \n\n {nova_msg}"
-                    aba_c.append_row([user_atual, msg_f, agora])
-                    
-                    # ATUALIZA O MARCO NA PLANILHA 'Config'
-                    # Encontra a linha do usuário e atualiza o ID
-                    celula = aba_config.find(user_atual)
-                    aba_config.update_cell(celula.row, 2, len(df_c) + 1)
-                    
-                    st.success("Arquivado com sucesso na planilha!")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.form_submit_button("🚀 Responder e Arquivar"):
+                    if nova_msg and not df_c.empty:
+                        agora = obter_agora_br().strftime('%d/%m %H:%M')
+                        msg_f = f"📌 CONCLUSÃO: '{msg_ref[:20]}...' \n\n {nova_msg}"
+                        
+                        # Envia para o Google Sheets
+                        aba_c.append_row([st.session_state['user'], msg_f, agora])
+                        
+                        # Atualiza o índice para esconder as mensagens antigas + a nova
+                        st.session_state['index_visto'] = len(df_c) + 1
+                        st.success("Enviado com sucesso!")
+                        st.rerun()
+            with c2:
+                # Botão para recuperar o que foi escondido
+                if st.form_submit_button("🔄 Ver Histórico"):
+                    st.session_state['index_visto'] = 0
                     st.rerun()
-
-            if st.button("🔄 Ver Tudo (Resetar Filtro)"):
-                celula = aba_config.find(user_atual)
-                aba_config.update_cell(celula.row, 2, 0)
-                st.rerun()
