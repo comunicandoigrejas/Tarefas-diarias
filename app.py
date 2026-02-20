@@ -246,7 +246,6 @@ else:
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
   # --- PÁGINA: CHAT ---
-  # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         
@@ -259,68 +258,58 @@ else:
                 st.session_state['msgs_ocultas'] = []
 
             if not df_c.empty:
-                # 1. FILTRO DE LIMPEZA EM MASSA (No topo para ser rápido)
-                with st.expander("🧹 Limpeza Rápida (Arquivar Conversas)"):
-                    # Filtramos apenas as que ainda estão visíveis
-                    opcoes_limpeza = [f"{idx} - {m['mensagem'][:40]}..." for idx, m in df_c.iterrows() if idx not in st.session_state['msgs_ocultas']]
-                    selecionadas = st.multiselect("Selecione as conversas já finalizadas:", opcoes_limpeza)
-                    
+                # 1. FILTRO DE LIMPEZA EM MASSA
+                with st.expander("🧹 Arquivar Conversas Resolvidas"):
+                    opcoes = [f"{idx} - {m['mensagem'][:40]}..." for idx, m in df_c.iterrows() if idx not in st.session_state['msgs_ocultas']]
+                    selecionadas = st.multiselect("Selecione para ocultar da tela:", opcoes)
                     if st.button("Confirmar Arquivamento"):
                         for s in selecionadas:
-                            # Extraímos o ID (índice) que colocamos no início do texto
                             idx_limpar = int(s.split(" - ")[0])
                             st.session_state['msgs_ocultas'].append(idx_limpar)
-                        st.success("Conversas arquivadas visualmente!")
-                        t_time.sleep(1)
                         st.rerun()
 
-              # 2. EXIBIÇÃO DAS MENSAGENS ATIVAS
-                st.subheader("Conversas Ativas")
+                # 2. EXIBIÇÃO DAS MENSAGENS (VERDE PARA VOCÊ)
                 df_visivel = df_c.drop(st.session_state['msgs_ocultas'], errors='ignore')
-                
                 for _, msg in df_visivel.iterrows():
-                    # Lógica das Cores: Se for o Willian, fica Verde. Se for a Bia, fica Roxo/Azul.
+                    # Definindo cores e lado do balão
                     if msg['remetente'] == st.session_state['user']:
-                        bg_color = "#2E8B57"  # Verde escuro elegante
-                        align = "margin-left: auto; border-right: 5px solid #FFFF00;" # Alinha à direita
+                        bg_color = "#2E8B57" # Verde
+                        align = "margin-left: auto; border-right: 5px solid #FFFF00;"
                     else:
-                        bg_color = "#4B0082"  # Roxo (cor do Comunicando Igrejas)
-                        align = "margin-right: auto; border-left: 5px solid #00FFFF;" # Alinha à esquerda
+                        bg_color = "#4B0082" # Roxo
+                        align = "margin-right: auto; border-left: 5px solid #00FFFF;"
 
                     st.markdown(f"""
-                        <div style='
-                            background-color: {bg_color}; 
-                            color: white; 
-                            padding: 12px; 
-                            border-radius: 15px; 
-                            margin-bottom: 10px; 
-                            width: 80%; 
-                            {align}
-                            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);'>
-                            <b style='color: #FFD700;'>{msg['remetente']}:</b><br>
-                            {msg['mensagem']}
-                            <div style='font-size: 0.7em; text-align: right; margin-top: 5px; opacity: 0.8;'>{msg.get('data_hora', '')}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                        <div style='background-color: {bg_color}; color: white; padding: 12px; border-radius: 15px; 
+                        margin-bottom: 10px; width: 85%; {align} shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+                        <b style='color: #FFD700;'>{msg['remetente']}:</b><br>{msg['mensagem']}
+                        </div>""", unsafe_allow_html=True)
 
                 lista_msgs = df_visivel['mensagem'].tolist()
+            else:
+                lista_msgs = ["Nenhuma mensagem"]
 
-        # 3. CAMPO PARA RESPONDER (Como antes)
-             st.divider()
+        except Exception as e:
+            st.error(f"Erro de conexão: {e}")
+            lista_msgs = ["Erro"]
+
+        # --- AQUI ESTAVA O ERRO! O st.divider() tem que estar alinhado com o 'try' ---
+        st.divider()
+        
         with st.form("form_chat_v4", clear_on_submit=True):
             st.markdown("### 📝 Responder a:")
-            msg_referencia = st.selectbox("Sobre qual assunto?", reversed(lista_msgs))
+            msg_ref = st.selectbox("Selecione o assunto:", reversed(lista_msgs))
             nova_msg = st.text_area("Sua resposta:", placeholder="Escreva aqui...")
             
-            col1, col2 = st.columns(2)
-            with col1:
+            c1, c2 = st.columns(2)
+            with c1:
                 if st.form_submit_button("🚀 Enviar"):
                     if nova_msg:
                         agora = obter_agora_br().strftime('%d/%m %H:%M')
-                        msg_f = f"📌 SOBRE: '{msg_referencia[:20]}...' \n{nova_msg}"
+                        msg_f = f"📌 SOBRE: '{msg_ref[:20]}...' \n{nova_msg}"
                         aba_c.append_row([st.session_state['user'], msg_f, agora])
                         st.rerun()
-            with col2:
+            with c2:
                 if st.form_submit_button("🔄 Ver Histórico"):
                     st.session_state['msgs_ocultas'] = []
                     st.rerun()
