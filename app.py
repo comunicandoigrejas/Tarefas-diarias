@@ -244,67 +244,69 @@ else:
                         n_dt = st.date_input("Adiar:", value=date.today()+timedelta(days=1), key=f"d_{row['id']}")
                         if st.button("⏳ Confirmar", key=f"ba_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
-       # --- PÁGINA: RELATÓRIOS ---
+    # --- PÁGINA: RELATÓRIOS (RESTAURADA) ---
     elif st.session_state['page'] == 'relatorio':
         st.title("📊 Relatório Geral de Atividades")
-        st.markdown("---")
+        st.write("Consulte aqui o histórico de tudo o que foi realizado no Comunicando Igrejas.")
 
         try:
-            # Conectando na aba de tarefas (ajuste o nome se for diferente)
-            aba_tarefas = conectar_google("Tarefas")
-            dados = aba_tarefas.get_all_records()
-            df_rel = pd.DataFrame(dados)
+            # Puxando a Página 01 (Índice 0)
+            aba_rel = conectar_google("Tarefas") # Ou use o nome exato da sua aba 01
+            dados_rel = aba_rel.get_all_records()
+            df_historico = pd.DataFrame(dados_rel)
 
-            if not df_rel.empty:
-                # 1. MÉTRICAS DE RESUMO (Cores: Azul, Verde, Laranja)
-                total = len(df_rel)
-                concluidas = len(df_rel[df_rel['status'].str.contains('Concluído|Baixado', case=False, na=False)])
-                pendentes = total - concluidas
+            if not df_historico.empty:
+                # 1. VISUALIZAÇÃO DE MÉTRICAS (Azul, Verde e Amarelo)
+                total_geral = len(df_historico)
                 
-                # Cálculo de porcentagem de aproveitamento
-                progresso = (concluidas / total) * 100 if total > 0 else 0
-
+                # Filtrando o que já foi dado baixa/concluído
+                concluidas = df_historico[df_historico['status'].astype(str).str.contains('Concluído|Baixado|OK', case=False, na=False)]
+                qtd_concluida = len(concluidas)
+                
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Total de Ações", total)
-                c2.metric("Concluídas ✅", concluidas, delta=f"{progresso:.1f}%")
-                c3.metric("Pendentes ⏳", pendentes)
+                with c1:
+                    st.metric("Total de Ações", total_geral)
+                with c2:
+                    st.metric("Concluídas ✅", qtd_concluida)
+                with c3:
+                    taxa = (qtd_concluida / total_geral * 100) if total_geral > 0 else 0
+                    st.metric("Aproveitamento", f"{taxa:.1f}%")
 
                 st.divider()
 
-                # 2. VISUALIZAÇÃO GRÁFICA (Padrão de Cores Willian)
-                col_graf1, col_graf2 = st.columns(2)
-
-                with col_graf1:
-                    st.subheader("📌 Status das Tarefas")
-                    # Gráfico de barras simples
-                    status_count = df_rel['status'].value_counts()
-                    st.bar_chart(status_count, color="#2E8B57") # Verde
-
-                with col_graf2:
-                    st.subheader("👥 Por Responsável")
-                    # Quem mais trabalhou no Comunicando Igrejas
-                    resp_count = df_rel['responsavel'].value_counts()
-                    st.bar_chart(resp_count, color="#4B0082") # Roxo/Azul
-
-                st.divider()
-
-                # 3. TABELA DETALHADA DE TUDO O QUE FOI FEITO
-                st.subheader("📜 Histórico Completo")
-                # Filtro rápido para você buscar algo específico
-                busca = st.text_input("🔍 Pesquisar no relatório (ex: nome, data ou tarefa):")
+                # 2. ÁREA DE PESQUISA (Para facilitar sua vida)
+                busca = st.text_input("🔍 Localizar no histórico:", placeholder="Digite uma data, nome ou palavra-chave...")
+                
                 if busca:
-                    df_rel = df_rel[df_rel.astype(str).apply(lambda x: x.str.contains(busca, case=False)).any(axis=1)]
+                    mask = df_historico.astype(str).apply(lambda x: x.str.contains(busca, case=False)).any(axis=1)
+                    df_historico = df_historico[mask]
 
-                st.dataframe(df_rel, use_container_width=True)
+                # 3. EXIBIÇÃO DA TABELA (Cores Estilizadas)
+                st.subheader("📋 Histórico de Lançamentos")
+                st.dataframe(
+                    df_historico, 
+                    use_container_width=True,
+                    column_config={
+                        "status": st.column_config.TextColumn("Status", help="Situação da tarefa"),
+                        "data": st.column_config.DateColumn("Data de Registro")
+                    }
+                )
+
+                # 4. DOWNLOAD (Para enviar para a igreja se precisar)
+                csv = df_historico.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Baixar Histórico em CSV",
+                    data=csv,
+                    file_name='relatorio_comunicando_igrejas.csv',
+                    mime='text/csv',
+                )
 
             else:
-                st.warning("Varão, ainda não existem dados registrados para gerar o relatório.")
+                st.info("Varão, a base de dados ainda está limpa. Inicie as atividades para gerar o relatório!")
 
         except Exception as e:
-            st.error(f"Erro ao gerar relatório: {e}")
-            st.info("Verifique se a aba 'Tarefas' está com os nomes das colunas corretos.")
-
-    # --- FIM DA PÁGINA RELATÓRIOS ---
+            st.error(f"Erro ao carregar o histórico: {e}")
+            st.info("Dica: Verifique se a sua Página 01 tem os nomes de colunas na primeira linha.")
 
 # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
