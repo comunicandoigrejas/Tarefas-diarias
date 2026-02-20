@@ -260,52 +260,67 @@ else:
 
         try:
             aba_c = conectar_google("Chat")
+            # Conectamos a uma nova aba chamada 'Config' para salvar o progresso
+            try:
+                aba_config = conectar_google("Config")
+            except:
+                st.error("Varão, crie uma aba chamada 'Config' na sua planilha com as colunas 'usuario' e 'ultimo_id'.")
+                st.stop()
+
             df_c = pd.DataFrame(aba_c.get_all_records())
+            df_conf = pd.DataFrame(aba_config.get_all_records())
+
+            # 1. RECUPERAR ONDE O WILLIAN PAROU (MARCO PERMANENTE)
+            user_atual = st.session_state['user']
+            conf_user = df_conf[df_conf['usuario'] == user_atual]
             
-            if 'ultimo_id_visto' not in st.session_state:
-                st.session_state['ultimo_id_visto'] = 0
-
-            if not df_c.empty:
-                # FILTRAGEM: Mostra apenas o que não foi arquivado
-                df_exibir = df_c.iloc[st.session_state['ultimo_id_visto']:]
-
-                if df_exibir.empty:
-                    st.info("🙏 Glória a Deus! Tudo resolvido por aqui.")
-                else:
-                    for _, msg in df_exibir.iterrows():
-                        is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
-                        classe = "me" if is_me else "others"
-                        st.markdown(f'<div class="chat-bubble {classe}"><b style="color:#FFD700;">{msg["remetente"]}:</b><br>{msg["mensagem"]}</div>', unsafe_allow_html=True)
-
-                lista_msgs = df_exibir['mensagem'].tolist() if not df_exibir.empty else ["Nenhuma"]
+            if not conf_user.empty:
+                marco_leitura = int(conf_user.iloc[0]['ultimo_id'])
             else:
-                lista_msgs = ["Nenhuma"]
+                marco_leitura = 0
+                # Cria o registro se não existir
+                aba_config.append_row([user_atual, 0])
+
+            # 2. EXIBIÇÃO FILTRADA
+            df_exibir = df_c.iloc[marco_leitura:]
+
+            if df_exibir.empty:
+                st.info("🙏 Tudo resolvido! Nenhuma conversa nova.")
+            else:
+                for _, msg in df_exibir.iterrows():
+                    is_me = str(msg['remetente']).strip().lower() == user_atual.strip().lower()
+                    classe = "me" if is_me else "others"
+                    st.markdown(f'<div class="chat-bubble {classe}"><b style="color:#FFD700;">{msg["remetente"]}:</b><br>{msg["mensagem"]}</div>', unsafe_allow_html=True)
+
+            lista_msgs = df_exibir['mensagem'].tolist() if not df_exibir.empty else ["Nenhuma"]
 
         except Exception as e:
-            st.error(f"Erro: {e}")
+            st.error(f"Erro de conexão: {e}")
             lista_msgs = ["Erro"]
 
         st.divider()
         
-        # FORMULÁRIO COM AUTO-ARQUIVAMENTO
-        with st.form("form_chat_auto", clear_on_submit=True):
-            st.markdown("### 📝 Responder e Arquivar:")
-            msg_ref = st.selectbox("Selecione o assunto para finalizar:", reversed(lista_msgs))
-            nova_msg = st.text_area("Sua resposta:", placeholder="Ao enviar, esta conversa será arquivada da tela...")
+        # 3. FORMULÁRIO COM BAIXA DEFINITIVA
+        with st.form("form_chat_permanente", clear_on_submit=True):
+            st.markdown("### 📝 Responder e Arquivar para Sempre:")
+            msg_ref = st.selectbox("Selecione o assunto:", reversed(lista_msgs))
+            nova_msg = st.text_area("Sua resposta:", placeholder="Ao enviar, o chat limpa definitivamente...")
             
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.form_submit_button("🚀 Responder e Dar Baixa"):
-                    if nova_msg and not df_c.empty:
-                        agora = obter_agora_br().strftime('%d/%m %H:%M')
-                        msg_f = f"📌 CONCLUSÃO: '{msg_ref[:20]}...' \n\n {nova_msg}"
-                        aba_c.append_row([st.session_state['user'], msg_f, agora])
-                        
-                        # A MÁGICA: O marcador pula para a nova linha que acabamos de criar + as anteriores
-                        st.session_state['ultimo_id_visto'] = len(df_c) + 1
-                        st.success("Mensagem enviada e conversas arquivadas!")
-                        st.rerun()
-            with c2:
-                if st.form_submit_button("🔄 Ver Histórico"):
-                    st.session_state['ultimo_id_visto'] = 0
+            if st.form_submit_button("🚀 Responder e Finalizar"):
+                if nova_msg and not df_c.empty:
+                    agora = obter_agora_br().strftime('%d/%m %H:%M')
+                    msg_f = f"📌 CONCLUSÃO: '{msg_ref[:20]}...' \n\n {nova_msg}"
+                    aba_c.append_row([user_atual, msg_f, agora])
+                    
+                    # ATUALIZA O MARCO NA PLANILHA 'Config'
+                    # Encontra a linha do usuário e atualiza o ID
+                    celula = aba_config.find(user_atual)
+                    aba_config.update_cell(celula.row, 2, len(df_c) + 1)
+                    
+                    st.success("Arquivado com sucesso na planilha!")
                     st.rerun()
+
+            if st.button("🔄 Ver Tudo (Resetar Filtro)"):
+                celula = aba_config.find(user_atual)
+                aba_config.update_cell(celula.row, 2, 0)
+                st.rerun()
