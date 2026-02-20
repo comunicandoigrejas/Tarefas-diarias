@@ -244,71 +244,8 @@ else:
                         n_dt = st.date_input("Adiar:", value=date.today()+timedelta(days=1), key=f"d_{row['id']}")
                         if st.button("⏳ Confirmar", key=f"ba_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
-    # --- PÁGINA: RELATÓRIOS (RESTAURADA) ---
-    elif st.session_state['page'] == 'relatorio':
-        st.title("📊 Relatório Geral de Atividades")
-        st.write("Consulte aqui o histórico de tudo o que foi realizado no Comunicando Igrejas.")
-
-        try:
-            # Puxando a Página 01 (Índice 0)
-            aba_rel = conectar_google("Tarefas") # Ou use o nome exato da sua aba 01
-            dados_rel = aba_rel.get_all_records()
-            df_historico = pd.DataFrame(dados_rel)
-
-            if not df_historico.empty:
-                # 1. VISUALIZAÇÃO DE MÉTRICAS (Azul, Verde e Amarelo)
-                total_geral = len(df_historico)
-                
-                # Filtrando o que já foi dado baixa/concluído
-                concluidas = df_historico[df_historico['status'].astype(str).str.contains('Concluído|Baixado|OK', case=False, na=False)]
-                qtd_concluida = len(concluidas)
-                
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.metric("Total de Ações", total_geral)
-                with c2:
-                    st.metric("Concluídas ✅", qtd_concluida)
-                with c3:
-                    taxa = (qtd_concluida / total_geral * 100) if total_geral > 0 else 0
-                    st.metric("Aproveitamento", f"{taxa:.1f}%")
-
-                st.divider()
-
-                # 2. ÁREA DE PESQUISA (Para facilitar sua vida)
-                busca = st.text_input("🔍 Localizar no histórico:", placeholder="Digite uma data, nome ou palavra-chave...")
-                
-                if busca:
-                    mask = df_historico.astype(str).apply(lambda x: x.str.contains(busca, case=False)).any(axis=1)
-                    df_historico = df_historico[mask]
-
-                # 3. EXIBIÇÃO DA TABELA (Cores Estilizadas)
-                st.subheader("📋 Histórico de Lançamentos")
-                st.dataframe(
-                    df_historico, 
-                    use_container_width=True,
-                    column_config={
-                        "status": st.column_config.TextColumn("Status", help="Situação da tarefa"),
-                        "data": st.column_config.DateColumn("Data de Registro")
-                    }
-                )
-
-                # 4. DOWNLOAD (Para enviar para a igreja se precisar)
-                csv = df_historico.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Baixar Histórico em CSV",
-                    data=csv,
-                    file_name='relatorio_comunicando_igrejas.csv',
-                    mime='text/csv',
-                )
-
-            else:
-                st.info("Varão, a base de dados ainda está limpa. Inicie as atividades para gerar o relatório!")
-
-        except Exception as e:
-            st.error(f"Erro ao carregar o histórico: {e}")
-            st.info("Dica: Verifique se a sua Página 01 tem os nomes de colunas na primeira linha.")
-
-# --- PÁGINA: CHAT ---
+  
+  # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat do Grupo")
         
