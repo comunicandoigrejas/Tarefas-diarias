@@ -246,7 +246,7 @@ else:
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
  # --- PÁGINA: RELATÓRIO ---
-  elif st.session_state['page'] == 'relatorio':
+    elif st.session_state['page'] == 'relatorio':
         st.title("📊 Relatório de Atividades Finalizadas")
         
         try:
