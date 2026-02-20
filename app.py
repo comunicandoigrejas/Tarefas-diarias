@@ -306,7 +306,7 @@ else:
                 lista_msgs = df_visivel['mensagem'].tolist()
 
         # 3. CAMPO PARA RESPONDER (Como antes)
-        st.divider()
+             st.divider()
         with st.form("form_chat_v4", clear_on_submit=True):
             st.markdown("### 📝 Responder a:")
             msg_referencia = st.selectbox("Sobre qual assunto?", reversed(lista_msgs))
