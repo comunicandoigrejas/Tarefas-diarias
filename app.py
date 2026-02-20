@@ -244,6 +244,32 @@ else:
                         n_dt = st.date_input("Adiar:", value=date.today()+timedelta(days=1), key=f"d_{row['id']}")
                         if st.button("⏳ Confirmar", key=f"ba_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
+
+ # --- PÁGINA: RELATÓRIO ---
+  elif st.session_state['page'] == 'relatorio':
+        st.title("📊 Relatório de Atividades Finalizadas")
+        
+        try:
+            # CONECTA NA PÁGINA1 (Sua aba de tarefas)
+            aba_p1 = conectar_google("Página1")
+            df_p1 = pd.DataFrame(aba_p1.get_all_records())
+            
+            if not df_p1.empty:
+                # Filtra tudo que contém "Concluído" na coluna 'status' (Coluna G)
+                df_finalizadas = df_p1[df_p1['status'].astype(str).str.contains('Concluído', case=False, na=False)]
+                
+                st.metric("Total de Missões Concluídas", len(df_finalizadas))
+                
+                st.subheader("📜 Histórico da Página1")
+                st.dataframe(df_finalizadas, use_container_width=True)
+                
+                # Gráfico de quem mais trabalhou
+                st.subheader("📈 Produtividade")
+                st.bar_chart(df_finalizadas['responsavel'].value_counts())
+            else:
+                st.warning("A Página1 está vazia ou sem cabeçalhos.")
+        except Exception as e:
+            st.error(f"Erro ao ler Página1: {e}")
   
   # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
