@@ -245,52 +245,45 @@ else:
                         if st.button("⏳ Confirmar", key=f"ba_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
-# --- PÁGINA: RELATÓRIO DE MISSÕES CONCLUÍDAS (v45.0) ---
+# --- PÁGINA: RELATÓRIO REFORMULADO (GARIMPEIRO) ---
     elif st.session_state['page'] == 'relatorio':
-        st.title("📊 Memorial de Missões Concluídas")
-        st.markdown(f"A paz do Senhor, **{st.session_state['user']}**! Aqui estão os registros finalizados pelo sistema.")
-
+        st.title("📊 Relatório de Atividades Finalizadas")
+        
         try:
-            # 1. CONEXÃO COM A PÁGINA1 (Onde o App salva as conclusões)
+            # 1. CONEXÃO COM A PÁGINA1
             aba_p1 = conectar_google("Página1")
             dados_p1 = aba_p1.get_all_records()
             df_p1 = pd.DataFrame(dados_p1)
 
             if not df_p1.empty:
-                # 2. FILTRAGEM PELO PADRÃO QUE O APP ESCREVE
-                # O App escreve '--- CONCLUÍDO em ...', então buscamos apenas por 'CONCLUÍDO'
-                # Usamos 'na=False' para não dar erro em células vazias
-                df_finalizados = df_p1[df_p1['status'].astype(str).str.contains('CONCLUÍDO', case=False, na=False)].copy()
+                # --- TESTE DE DIAGNÓSTICO PARA O VARÃO ---
+                # st.write("Colunas encontradas:", df_p1.columns.tolist()) # Descomente para depurar
+                
+                # 2. LÓGICA GARIMPEIRA: Procura 'CONCLUÍDO' em QUALQUER coluna
+                # Isso resolve se o texto estiver em 'status', 'observação' ou 'finalização'
+                mask = df_p1.astype(str).apply(lambda x: x.str.contains('CONCLUÍDO', case=False, na=False)).any(axis=1)
+                df_finalizados = df_p1[mask].copy()
 
                 if not df_finalizados.empty:
-                    # 3. MÉTRICAS DE VITÓRIA
-                    total_vitorias = len(df_finalizados)
-                    st.success(f"🙏 Glória a Deus! O sistema identificou {total_vitorias} missões finalizadas.")
+                    # 3. EXIBIÇÃO (Cores: Verde e Azul)
+                    st.success(f"🙌 Glória a Deus! Encontramos {len(df_finalizados)} registros concluídos.")
                     
-                    st.divider()
-
-                    # 4. EXIBIÇÃO DA TABELA (Formatada para o Comunicando Igrejas)
-                    st.subheader("📜 Histórico Detalhado")
-                    st.dataframe(
-                        df_finalizados, 
-                        use_container_width=True,
-                        hide_index=True
-                    )
+                    st.subheader("📜 Memorial de Atividades")
+                    st.dataframe(df_finalizados, use_container_width=True, hide_index=True)
                     
-                    # 5. GRÁFICO DE PRODUTIVIDADE (Azul e Verde)
+                    # Gráfico simples de quem finalizou (Azul/Verde)
                     if 'responsavel' in df_finalizados.columns:
-                        st.subheader("📈 Produtividade do Grupo")
-                        contagem = df_finalizados['responsavel'].value_counts()
-                        # Usando tons de Azul e Verde como solicitado
-                        st.bar_chart(contagem, color="#2E8B57") 
-
+                        st.bar_chart(df_finalizados['responsavel'].value_counts(), color="#2E8B57")
                 else:
-                    st.warning("Varão, o sistema ainda não encontrou nenhuma linha com o selo 'CONCLUÍDO' na Página1.")
+                    st.warning("Varão, a Página1 tem dados, mas nenhum tem o termo 'CONCLUÍDO'.")
+                    st.info("Verifique se o App está escrevendo exatamente essa palavra ou se é outra.")
+                    # Mostra as 3 primeiras linhas só para você conferir o que tem lá
+                    st.write("Exemplo de como os dados estão chegando no App:", df_p1.head(3))
             else:
-                st.info("A planilha Página1 está sem dados registrados.")
+                st.error("A aba 'Página1' parece estar totalmente vazia no Google Sheets.")
 
         except Exception as e:
-            st.error(f"Erro ao processar o memorial: {e}")
+            st.error(f"Erro ao carregar relatório: {e}")
   
   # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
