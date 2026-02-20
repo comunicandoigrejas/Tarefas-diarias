@@ -274,22 +274,36 @@ else:
                         t_time.sleep(1)
                         st.rerun()
 
-                # 2. EXIBIÇÃO DAS MENSAGENS ATIVAS (Sem botões individuais para não pesar)
+              # 2. EXIBIÇÃO DAS MENSAGENS ATIVAS
                 st.subheader("Conversas Ativas")
                 df_visivel = df_c.drop(st.session_state['msgs_ocultas'], errors='ignore')
                 
                 for _, msg in df_visivel.iterrows():
-                    classe = "msg-eu" if msg['remetente'] == st.session_state['user'] else "msg-outro"
-                    st.markdown(f"<div class='chat-msg {classe}'><b>{msg['remetente']}:</b><br>{msg['mensagem']}</div>", unsafe_allow_html=True)
+                    # Lógica das Cores: Se for o Willian, fica Verde. Se for a Bia, fica Roxo/Azul.
+                    if msg['remetente'] == st.session_state['user']:
+                        bg_color = "#2E8B57"  # Verde escuro elegante
+                        align = "margin-left: auto; border-right: 5px solid #FFFF00;" # Alinha à direita
+                    else:
+                        bg_color = "#4B0082"  # Roxo (cor do Comunicando Igrejas)
+                        align = "margin-right: auto; border-left: 5px solid #00FFFF;" # Alinha à esquerda
+
+                    st.markdown(f"""
+                        <div style='
+                            background-color: {bg_color}; 
+                            color: white; 
+                            padding: 12px; 
+                            border-radius: 15px; 
+                            margin-bottom: 10px; 
+                            width: 80%; 
+                            {align}
+                            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);'>
+                            <b style='color: #FFD700;'>{msg['remetente']}:</b><br>
+                            {msg['mensagem']}
+                            <div style='font-size: 0.7em; text-align: right; margin-top: 5px; opacity: 0.8;'>{msg.get('data_hora', '')}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
                 lista_msgs = df_visivel['mensagem'].tolist()
-            else:
-                lista_msgs = ["Nenhuma mensagem"]
-                st.info("O chat está limpo, abençoado!")
-
-        except Exception as e:
-            st.error("Erro ao carregar o chat. Tente atualizar a página.")
-            lista_msgs = ["Erro"]
 
         # 3. CAMPO PARA RESPONDER (Como antes)
         st.divider()
