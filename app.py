@@ -247,7 +247,7 @@ else:
 
 # --- PÁGINA: RELATÓRIO REFORMULADO (GARIMPEIRO) ---
     elif st.session_state['page'] == 'relatorio':
-        st.title("📊 Relatório de Atividades Finalizadas")
+        st.title("📊 Relatório")
         
         try:
             # 1. CONEXÃO COM A PÁGINA1
