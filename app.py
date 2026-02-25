@@ -245,46 +245,61 @@ else:
                         if st.button("⏳ Confirmar", key=f"ba_{row['id']}"):
                             atualizar_tarefa_planilha(row['id'], status_final='Adiado', nova_data=n_dt); st.rerun()
 
-# --- PÁGINA: RELATÓRIO REFORMULADO (GARIMPEIRO - v48) ---
+# --- PÁGINA: RELATÓRIO PENTE FINO (v49) ---
     elif st.session_state['page'] == 'report':
-        st.title("📊 Relatório de Atividades Finalizadas")
-        st.markdown(f"Paz do Senhor, **{st.session_state['user']}**! Aqui está o histórico da Página1.")
+        st.title("📊 Relatório Geral de Atividades")
+        st.markdown(f"**Comunicando Igrejas** - Histórico Completo de Missões Concluídas")
         
         try:
-            # 1. CONEXÃO COM A PÁGINA1
+            # 1. CONEXÃO COM A PÁGINA1 (Fonte principal)
             aba_p1 = conectar_google("Página1")
             dados_p1 = aba_p1.get_all_records()
             df_p1 = pd.DataFrame(dados_p1)
 
             if not df_p1.empty:
-                # 2. LÓGICA GARIMPEIRA: Procura o selo 'CONCLUÍDO' que o App escreve
-                # Varremos todas as colunas para não ter erro
+                # 2. LÓGICA PENTE FINO: 
+                # Transformamos tudo em texto e buscamos 'CONCLUÍDO' em qualquer lugar da linha.
+                # O 'case=False' garante que pegue 'Concluído', 'CONCLUÍDO' ou 'concluido'.
                 mask = df_p1.astype(str).apply(lambda x: x.str.contains('CONCLUÍDO', case=False, na=False)).any(axis=1)
                 df_finalizados = df_p1[mask].copy()
 
                 if not df_finalizados.empty:
-                    # 3. EXIBIÇÃO DE MÉTRICAS (Verde e Azul)
-                    st.success(f"🙌 Glória a Deus! Encontramos {len(df_finalizados)} missões finalizadas.")
+                    # Ordenar pela data de prazo (se existir a coluna) para ver as mais recentes primeiro
+                    if 'data_prazo' in df_finalizados.columns:
+                        df_finalizados = df_finalizados.sort_values(by='data_prazo', ascending=False)
+
+                    st.success(f"🙌 Glória a Deus! Localizamos {len(df_finalizados)} tarefas finalizadas no histórico.")
                     
-                    st.subheader("📜 Memorial de Atividades")
-                    # Mostramos a tabela completa com o que foi achado
-                    st.dataframe(df_finalizados, use_container_width=True, hide_index=True)
-                    
-                    # 4. GRÁFICO DE PRODUTIVIDADE
-                    # Tentamos achar a coluna de responsável para o gráfico
-                    col_resp = 'responsavel' if 'responsavel' in df_finalizados.columns else df_finalizados.columns[3]
-                    st.subheader("📈 Produtividade por Integrante")
-                    st.bar_chart(df_finalizados[col_resp].value_counts(), color="#2E8B57")
+                    # 3. EXIBIÇÃO EM TABELA INTERATIVA
+                    st.subheader("📜 Detalhamento das Vitórias")
+                    st.dataframe(
+                        df_finalizados, 
+                        use_container_width=True, 
+                        hide_index=True
+                    )
+
+                    # 4. MÉTRICAS POR RESPONSÁVEL (Cores: Verde e Azul)
+                    if 'responsavel' in df_finalizados.columns:
+                        st.divider()
+                        st.subheader("📈 Resumo de Produtividade")
+                        col_graf, col_met = st.columns([2, 1])
+                        
+                        with col_graf:
+                            contagem = df_finalizados['responsavel'].value_counts()
+                            st.bar_chart(contagem, color="#2E8B57") # Verde Pentecostal
+                        
+                        with col_met:
+                            for nome, qtd in contagem.items():
+                                st.metric(label=f"Servo(a): {nome}", value=f"{qtd} Feitas")
+
                 else:
-                    st.warning("Varão, a Página1 tem dados, mas o sistema não encontrou o selo 'CONCLUÍDO'.")
-                    st.info("Verifique se você já finalizou alguma missão hoje na aba Missões.")
-                    # Mostra um rascunho dos dados para você ver se o 'CONCLUÍDO' está lá
-                    st.write("Dados lidos da Página1:", df_p1.head(3))
+                    st.warning("Varão, o sistema leu a Página1 mas não encontrou o termo 'CONCLUÍDO' em nenhuma linha.")
+                    st.info("Dica: Verifique se na planilha o status foi escrito corretamente pelo App.")
             else:
-                st.error("A aba 'Página1' parece estar vazia no Google Sheets.")
+                st.error("A aba 'Página1' parece não ter registros para gerar o relatório.")
 
         except Exception as e:
-            st.error(f"Erro ao carregar relatório: {e}")
+            st.error(f"Erro ao gerar relatório: {e}")
   
   # --- PÁGINA: CHAT ---
     elif st.session_state['page'] == 'chat':
