@@ -301,74 +301,74 @@ else:
         except Exception as e:
             st.error(f"Erro ao gerar relatório: {e}")
   
-  # --- PÁGINA: CHAT ---
+ # --- PÁGINA: CHAT (NOVA MENSAGEM E LIMPEZA) ---
     elif st.session_state['page'] == 'chat':
-        st.title("💬 Chat do Grupo")
+        st.title("💬 Chat Comunicando Igrejas")
         
-        # Estilo dos balões (Melhorado para evitar o erro visual do </div>)
-        st.markdown("""
-            <style>
-            .chat-bubble { padding: 12px; border-radius: 15px; margin-bottom: 8px; width: 85%; color: white; line-height: 1.4; }
-            .me { background-color: #2E8B57; margin-left: auto; border-right: 5px solid #FFFF00; text-align: right; }
-            .others { background-color: #4B0082; margin-right: auto; border-left: 5px solid #00FFFF; text-align: left; }
-            </style>
-        """, unsafe_allow_html=True)
-
         try:
             aba_c = conectar_google("Chat")
             dados_chat = aba_c.get_all_records()
             df_full = pd.DataFrame(dados_chat)
             
+            # 1. BOTÃO DE LIMPEZA (Apagar mensagens antigas)
+            if st.button("🧹 Limpar Conversas Ativas"):
+                # Ele vai marcar tudo que é 'Ativo' como 'Baixado' de uma vez só
+                with st.spinner("Arquivando mensagens..."):
+                    for i, row in df_full.iterrows():
+                        if str(row['status']).strip() == 'Ativo':
+                            aba_c.update_cell(i + 2, 5, "Baixado")
+                    st.success("Histórico limpo!")
+                    st.rerun()
+
+            st.divider()
+
+            # 2. EXIBIÇÃO DAS MENSAGENS
             if not df_full.empty:
-                # FILTRO BLINDADO: Remove espaços e garante que só apareça o 'Ativo'
-                df_full['status_limpo'] = df_full['status'].astype(str).str.strip()
-                df_exibir = df_full[df_full['status_limpo'] == 'Ativo'].copy()
-
+                df_exibir = df_full[df_full['status'].astype(str).str.strip() == 'Ativo'].copy()
+                
                 if df_exibir.empty:
-                    st.info("🙏 Glória a Deus! Todas as conversas foram baixadas.")
+                    st.info("🙏 Nenhuma mensagem ativa. Que tal iniciar um chat novo abaixo?")
                 else:
-                    for idx, msg in df_exibir.iterrows():
-                        # Identifica se é Willian (Verde) ou Bia (Roxo)
-                        is_me = str(msg['remetente']).strip().lower() == str(st.session_state['user']).strip().lower()
-                        classe = "me" if is_me else "others"
+                    for _, msg in df_exibir.iterrows():
+                        sou_eu = str(msg['remetente']).strip().lower() == st.session_state['user'].lower()
+                        cor = "#2E8B57" if sou_eu else "#4B0082" # Verde ou Roxo
+                        alinha = "right" if sou_eu else "left"
                         
-                        st.markdown(f'<div class="chat-bubble {classe}"><b style="color:#FFD700;">{msg["remetente"]}:</b><br>{msg["mensagem"]}</div>', unsafe_allow_html=True)
+                        st.markdown(f"""
+                            <div style="background-color:{cor}; padding:10px; border-radius:10px; margin-bottom:5px; text-align:{alinha}; color:white;">
+                                <b>{msg['remetente']}:</b><br>{msg['mensagem']}
+                            </div>
+                        """, unsafe_allow_html=True)
 
-                lista_msgs = df_exibir['mensagem'].tolist() if not df_exibir.empty else ["Nenhuma"]
-            else:
-                lista_msgs = ["Nenhuma"]
+            st.divider()
+
+            # 3. CRIAR NOVO CHAT OU RESPONDER
+            with st.form("novo_chat", clear_on_submit=True):
+                st.subheader("📝 Enviar Mensagem")
+                tipo_msg = st.radio("Tipo:", ["Nova Mensagem", "Responder Existente"], horizontal=True)
+                
+                msg_selecionada = "Nenhuma"
+                if tipo_msg == "Responder Existente" and not df_exibir.empty:
+                    msg_selecionada = st.selectbox("Responder a:", df_exibir['mensagem'].tolist())
+                
+                texto_nova = st.text_area("Escreva sua mensagem aqui:")
+                
+                if st.form_submit_button("🚀 Enviar Agora"):
+                    if texto_nova:
+                        agora = obter_agora_br().strftime('%d/%m %H:%M')
+                        
+                        # Se for resposta, damos baixa na antiga
+                        if tipo_msg == "Responder Existente" and msg_selecionada != "Nenhuma":
+                            idx_velha = df_full[df_full['mensagem'] == msg_selecionada].index[0]
+                            aba_c.update_cell(idx_velha + 2, 5, "Baixado")
+                            corpo = f"RE: {msg_selecionada[:20]}... | {texto_nova}"
+                        else:
+                            corpo = texto_nova
+                        
+                        # Salva a nova mensagem
+                        aba_c.append_row([agora, st.session_state['user'], "Todos", corpo, "Ativo"])
+                        st.success("Mensagem enviada!")
+                        st.rerun()
 
         except Exception as e:
-            st.error(f"Erro na leitura: {e}")
-            st.stop()
-
-        st.divider()
-        
-        # 2. FORMULÁRIO DE RESPOSTA E BAIXA
-        with st.form("form_chat_v38", clear_on_submit=True):
-            st.markdown("### 📝 Responder e Arquivar:")
-            msg_ref = st.selectbox("Selecione qual mensagem deseja dar baixa:", reversed(lista_msgs))
-            nova_msg = st.text_area("Sua resposta:", placeholder="Escreva aqui...")
-            
-            if st.form_submit_button("🚀 Enviar e Dar Baixa"):
-                if nova_msg and msg_ref != "Nenhuma":
-                    agora = obter_agora_br().strftime('%d/%m %H:%M')
-                    
-                    # Localiza a linha correta para dar baixa
-                    # Usamos o índice exato do DataFrame para não ter erro de busca
-                    try:
-                        idx_linha = df_full[df_full['mensagem'] == msg_ref].index[0]
-                        linha_planilha = idx_linha + 2 # +1 do cabeçalho, +1 porque o index começa em 0
-                        
-                        # Atualiza para Baixado
-                        aba_c.update_cell(linha_planilha, 5, "Baixado")
-                        
-                        # Envia a sua nova resposta como Ativo
-                        # Formato: data_hora, remetente, destinatario, mensagem, status
-                        corpo_msg = f"📌 SOBRE: '{msg_ref[:20]}...' \n\n {nova_msg}"
-                        aba_c.append_row([agora, st.session_state['user'], "Todos", corpo_msg, "Ativo"])
-                        
-                        st.success("Conversa baixada e resposta enviada!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao dar baixa: {e}")
+            st.error(f"Erro no Chat: {e}")
