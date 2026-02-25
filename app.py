@@ -301,7 +301,7 @@ else:
         except Exception as e:
             st.error(f"Erro ao gerar relatório: {e}")
   
- # --- PÁGINA: CHAT (NOVA MENSAGEM E LIMPEZA) ---
+# --- PÁGINA: CHAT COM CONFIRMAÇÃO DE LEITURA (v51) ---
     elif st.session_state['page'] == 'chat':
         st.title("💬 Chat Comunicando Igrejas")
         
@@ -310,64 +310,66 @@ else:
             dados_chat = aba_c.get_all_records()
             df_full = pd.DataFrame(dados_chat)
             
-            # 1. BOTÃO DE LIMPEZA (Apagar mensagens antigas)
-            if st.button("🧹 Limpar Conversas Ativas"):
-                # Ele vai marcar tudo que é 'Ativo' como 'Baixado' de uma vez só
-                with st.spinner("Arquivando mensagens..."):
+            # 1. BOTÃO PARA APAGAR SOMENTE AS LIDAS
+            if st.button("🗑️ Apagar Mensagens Lidas"):
+                with st.spinner("Limpando mensagens confirmadas..."):
                     for i, row in df_full.iterrows():
-                        if str(row['status']).strip() == 'Ativo':
+                        # Se o status for 'Lido', vira 'Baixado' e some da tela
+                        if str(row['status']).strip() == 'Lido':
                             aba_c.update_cell(i + 2, 5, "Baixado")
-                    st.success("Histórico limpo!")
+                    st.success("Mensagens lidas foram arquivadas!")
                     st.rerun()
 
             st.divider()
 
-            # 2. EXIBIÇÃO DAS MENSAGENS
+            # 2. EXIBIÇÃO DAS MENSAGENS (Ativas e Lidas)
             if not df_full.empty:
-                df_exibir = df_full[df_full['status'].astype(str).str.strip() == 'Ativo'].copy()
+                # Mostramos o que for 'Ativo' ou 'Lido'
+                df_exibir = df_full[df_full['status'].isin(['Ativo', 'Lido'])].copy()
                 
                 if df_exibir.empty:
-                    st.info("🙏 Nenhuma mensagem ativa. Que tal iniciar um chat novo abaixo?")
+                    st.info("🙏 Nenhuma mensagem nova por enquanto.")
                 else:
-                    for _, msg in df_exibir.iterrows():
-                        sou_eu = str(msg['remetente']).strip().lower() == st.session_state['user'].lower()
-                        cor = "#2E8B57" if sou_eu else "#4B0082" # Verde ou Roxo
-                        alinha = "right" if sou_eu else "left"
+                    for idx, msg in df_exibir.iterrows():
+                        user_atual = str(st.session_state['user']).strip().lower()
+                        remetente = str(msg['remetente']).strip().lower()
+                        destinatario = str(msg['destinatario']).strip().lower()
+                        status_msg = str(msg['status']).strip()
                         
-                        st.markdown(f"""
-                            <div style="background-color:{cor}; padding:10px; border-radius:10px; margin-bottom:5px; text-align:{alinha}; color:white;">
-                                <b>{msg['remetente']}:</b><br>{msg['mensagem']}
-                            </div>
-                        """, unsafe_allow_html=True)
+                        sou_eu = remetente == user_atual
+                        cor = "#2E8B57" if sou_eu else "#4B0082"
+                        alinha = "right" if sou_eu else "left"
+                        selo_lido = " ✅ (Lida)" if status_msg == "Lido" else " 📩 (Nova)"
+                        
+                        # Layout da Mensagem
+                        with st.container():
+                            st.markdown(f"""
+                                <div style="background-color:{cor}; padding:10px; border-radius:10px; margin-bottom:5px; text-align:{alinha}; color:white; border-bottom: 2px solid #FFFF00;">
+                                    <small>{msg['data_hora']} - {selo_lido}</small><br>
+                                    <b>{msg['remetente']} para {msg['destinatario']}:</b><br>{msg['mensagem']}
+                                </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # LOGICA DO BOTÃO "LIDO": Só aparece para quem recebeu a mensagem e se ela ainda for 'Ativo'
+                            if not sou_eu and status_msg == "Ativo":
+                                if st.button(f"✔️ Marcar como lida", key=f"lido_{idx}"):
+                                    aba_c.update_cell(idx + 2, 5, "Lido")
+                                    st.rerun()
 
             st.divider()
 
-            # 3. CRIAR NOVO CHAT OU RESPONDER
-            with st.form("novo_chat", clear_on_submit=True):
-                st.subheader("📝 Enviar Mensagem")
-                tipo_msg = st.radio("Tipo:", ["Nova Mensagem", "Responder Existente"], horizontal=True)
+            # 3. ENVIAR NOVA MENSAGEM
+            with st.form("form_envio", clear_on_submit=True):
+                st.subheader("📝 Nova Mensagem")
+                dest = st.selectbox("Enviar para:", ["Todos", "Willian", "Bia"])
+                texto = st.text_area("Sua mensagem:")
                 
-                msg_selecionada = "Nenhuma"
-                if tipo_msg == "Responder Existente" and not df_exibir.empty:
-                    msg_selecionada = st.selectbox("Responder a:", df_exibir['mensagem'].tolist())
-                
-                texto_nova = st.text_area("Escreva sua mensagem aqui:")
-                
-                if st.form_submit_button("🚀 Enviar Agora"):
-                    if texto_nova:
+                if st.form_submit_button("🚀 Enviar"):
+                    if texto:
                         agora = obter_agora_br().strftime('%d/%m %H:%M')
-                        
-                        # Se for resposta, damos baixa na antiga
-                        if tipo_msg == "Responder Existente" and msg_selecionada != "Nenhuma":
-                            idx_velha = df_full[df_full['mensagem'] == msg_selecionada].index[0]
-                            aba_c.update_cell(idx_velha + 2, 5, "Baixado")
-                            corpo = f"RE: {msg_selecionada[:20]}... | {texto_nova}"
-                        else:
-                            corpo = texto_nova
-                        
-                        # Salva a nova mensagem
-                        aba_c.append_row([agora, st.session_state['user'], "Todos", corpo, "Ativo"])
-                        st.success("Mensagem enviada!")
+                        # Status inicial é sempre 'Ativo'
+                        aba_c.append_row([agora, st.session_state['user'], dest, texto, "Ativo"])
+                        st.success("Enviada!")
                         st.rerun()
 
         except Exception as e:
