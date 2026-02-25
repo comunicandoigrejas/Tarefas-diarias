@@ -386,4 +386,4 @@ else:
                         st.success("Mensagem enviada!"); st.rerun()
 
         except Exception as e:
-            st.error(f"Erro no Chat: {e}")}")
+            st.error(f"Erro no Chat: {e}")
