@@ -141,38 +141,44 @@ else:
 
     df_geral = carregar_tarefas()
 
-    # --- PÁGINA: HOME ---
+  # --- PÁGINA: HOME (FILTRADA POR USUÁRIO) ---
     if st.session_state['page'] == 'home':
         st.title(f"☀️ Olá, {st.session_state['user']}!")
         hoje_str = obter_agora_br().strftime('%Y-%m-%d')
-        st.subheader("📅 Missões para Hoje:")
+        st.subheader("📅 Suas Missões para Hoje:")
         
         if not df_geral.empty:
-            # Filtra o que é para hoje e não está concluído
-            df_hoje = df_geral[(df_geral['data_prazo'].astype(str) == hoje_str) & 
-                               (~df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False))]
+            # 1. PEGAMOS O USUÁRIO LOGADO (Ex: Willian ou Bia)
+            usuario_logado = str(st.session_state['user']).strip().lower()
+            
+            # 2. FILTRO TRIPLO: Data de Hoje + Não Concluído + É PARA MIM?
+            # Comparamos o responsável da planilha com o usuário que fez login
+            df_hoje = df_geral[
+                (df_geral['data_prazo'].astype(str) == hoje_str) & 
+                (~df_geral['status'].str.contains('CONCLUÍDO', case=False, na=False)) &
+                (df_geral['responsavel'].str.strip().str.lower() == usuario_logado) # <-- AQUI ESTÁ A CHAVE!
+            ]
             
             if df_hoje.empty:
-                st.success("Glória a Deus! Tudo em dia por aqui.")
+                st.success("Glória a Deus! Você não tem missões pendentes para hoje.")
             else:
                 for _, r in df_hoje.iterrows():
-                    # O container deve estar alinhado com o 'for'
                     with st.container():
                         col_txt, col_btn = st.columns([3, 1])
                         with col_txt:
                             st.markdown(f"""
                                 <div style='background-color:#4B0082; padding:15px; border-radius:10px; border-left:5px solid #FFFF00;'>
                                     <h4 style='margin:0;'>🕒 {r['hora_prazo']} - {r['titulo']}</h4>
+                                    <small>Foco: {r['responsavel']}</small>
                                 </div>
                             """, unsafe_allow_html=True)
                         with col_btn:
-                            # ESTA LINHA ABAIXO PRECISA ESTAR EXATAMENTE ABAIXO DO 'with col_btn'
-                            if st.button(f"🚀 Executar", key=f"exec_{r['id']}"):
+                            if st.button(f"🚀 Executar", key=f"home_exec_{r['id']}"):
                                 st.session_state['page'] = 'list'
                                 st.session_state['tarefa_foco'] = str(r['id'])
                                 st.rerun()
         else:
-            st.info("Nenhuma missão registrada.")
+            st.info("Nenhuma missão registrada no sistema.")
 
     # --- PÁGINA: AGENDAR ---
     elif st.session_state['page'] == 'add':
